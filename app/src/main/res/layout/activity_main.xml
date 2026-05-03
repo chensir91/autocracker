@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     android:background="@color/background">
 
-    <!-- 顶部标题栏 -->
+    <!-- 顶部标题栏 - 绿色背景 -->
     <LinearLayout
         android:id="@+id/titleBar"
         android:layout_width="match_parent"
@@ -88,7 +88,7 @@
                 android:layout_weight="1"
                 android:text="@string/btn_record"
                 app:backgroundTint="@color/status_recording"
-                app:cornerRadius="8dp" />
+                app:cornerRadius="12dp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnSave"
@@ -97,11 +97,11 @@
                 android:layout_marginStart="8dp"
                 android:layout_weight="1"
                 android:text="@string/btn_save"
-                app:backgroundTint="@color/secondary"
-                app:cornerRadius="8dp" />
+                app:backgroundTint="@color/accent"
+                app:cornerRadius="12dp" />
         </LinearLayout>
 
-        <!-- 开始按钮 -->
+        <!-- 开始按钮 - 主绿色 -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnStart"
             android:layout_width="match_parent"
@@ -109,7 +109,7 @@
             android:layout_marginTop="24dp"
             android:text="@string/btn_start"
             android:textSize="18sp"
-            app:backgroundTint="@color/status_running"
+            app:backgroundTint="@color/primary"
             app:cornerRadius="12dp" />
 
         <!-- 暂停按钮 -->
@@ -122,7 +122,7 @@
             android:text="@string/btn_pause"
             android:visibility="gone"
             app:backgroundTint="@color/status_paused"
-            app:cornerRadius="8dp" />
+            app:cornerRadius="12dp" />
 
         <!-- 停止按钮 -->
         <com.google.android.material.button.MaterialButton
@@ -134,7 +134,7 @@
             android:text="@string/btn_stop"
             android:visibility="gone"
             app:backgroundTint="@color/text_secondary"
-            app:cornerRadius="8dp" />
+            app:cornerRadius="12dp" />
     </LinearLayout>
 
     <!-- 加载方案按钮 -->
@@ -145,10 +145,12 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="32dp"
         android:text="@string/btn_load"
-        app:cornerRadius="8dp"
+        android:textColor="@color/primary"
+        app:cornerRadius="12dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/buttonArea" />
+        app:layout_constraintTop_toBottomOf="@id/buttonArea"
+        app:strokeColor="@color/primary" />
 
     <!-- 权限提示区域 -->
     <LinearLayout
@@ -177,7 +179,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="end"
-            android:text="去开启" />
+            android:text="去开启"
+            android:textColor="@color/primary" />
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

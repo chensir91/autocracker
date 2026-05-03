@@ -1,83 +1,84 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/floatingContainer"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:background="@drawable/bg_floating_window"
     android:gravity="center"
     android:orientation="horizontal"
-    android:padding="8dp">
+    android:padding="6dp">
 
     <!-- 录制按钮 -->
     <ImageButton
         android:id="@+id/btnRecord"
-        android:layout_width="44dp"
-        android:layout_height="44dp"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
         android:background="@drawable/bg_floating_button"
         android:contentDescription="录制"
-        android:padding="10dp"
+        android:padding="8dp"
         android:src="@android:drawable/ic_menu_edit"
-        android:tint="@color/status_recording" />
+        app:tint="@color/status_recording" />
 
     <!-- 开始/暂停按钮 -->
     <ImageButton
         android:id="@+id/btnStartPause"
-        android:layout_width="44dp"
-        android:layout_height="44dp"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
         android:layout_marginStart="6dp"
         android:background="@drawable/bg_floating_button"
         android:contentDescription="开始"
-        android:padding="10dp"
+        android:padding="8dp"
         android:src="@android:drawable/ic_media_play"
-        android:tint="@color/status_running" />
+        app:tint="@color/primary" />
 
     <!-- 停止按钮 -->
     <ImageButton
         android:id="@+id/btnStop"
-        android:layout_width="44dp"
-        android:layout_height="44dp"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
         android:layout_marginStart="6dp"
         android:background="@drawable/bg_floating_button"
         android:contentDescription="停止"
-        android:padding="10dp"
+        android:padding="8dp"
         android:src="@android:drawable/ic_menu_close_clear_cancel"
-        android:tint="@color/text_secondary" />
+        app:tint="@color/text_secondary" />
 
     <!-- 定时启动按钮 -->
     <ImageButton
         android:id="@+id/btnScheduled"
-        android:layout_width="44dp"
-        android:layout_height="44dp"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
         android:layout_marginStart="6dp"
         android:background="@drawable/bg_floating_button"
         android:contentDescription="定时启动"
-        android:padding="10dp"
+        android:padding="8dp"
         android:src="@android:drawable/ic_menu_recent_history"
-        android:tint="@color/primary" />
+        app:tint="@color/accent" />
 
     <!-- 设置按钮 -->
     <ImageButton
         android:id="@+id/btnSettings"
-        android:layout_width="44dp"
-        android:layout_height="44dp"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
         android:layout_marginStart="6dp"
         android:background="@drawable/bg_floating_button"
         android:contentDescription="设置"
-        android:padding="10dp"
+        android:padding="8dp"
         android:src="@android:drawable/ic_menu_preferences"
-        android:tint="@color/secondary" />
+        app:tint="@color/primary" />
 
     <!-- 最小化按钮 -->
     <ImageButton
         android:id="@+id/btnMinimize"
-        android:layout_width="44dp"
-        android:layout_height="44dp"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
         android:layout_marginStart="6dp"
         android:background="@drawable/bg_floating_button"
         android:contentDescription="最小化"
-        android:padding="10dp"
+        android:padding="8dp"
         android:src="@android:drawable/ic_menu_crop"
-        android:tint="@color/text_secondary" />
+        app:tint="@color/text_secondary" />
 
     <!-- 倒计时显示 -->
     <TextView
@@ -85,7 +86,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
-        android:textColor="@color/status_running"
+        android:textColor="@color/primary"
         android:textSize="14sp"
         android:textStyle="bold"
         android:visibility="gone" />
