@@ -1,9 +1,10 @@
 package com.autoclicker.arknights.util
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.AccessibilityService.GestureResultCallback
 import android.graphics.Path
-import android.view.accessibility.AccessibilityGestureEvent
 import android.view.accessibility.GestureDescription
+import android.view.accessibility.GestureDescription.StrokeDescription
 
 /**
  * 点击工具类，用于通过AccessibilityService执行模拟点击
