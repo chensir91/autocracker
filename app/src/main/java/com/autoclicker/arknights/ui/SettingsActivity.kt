@@ -11,18 +11,29 @@ import com.autoclicker.arknights.data.SettingsManager
 import com.autoclicker.arknights.databinding.ActivitySettingsBinding
 
 /**
- * 设置页面
- * 用于配置点击间隔和循环次数
+ * 设置页面 v1.1.0
+ * 用于配置点击间隔、循环次数、安全性设置和定时启动
  */
 class SettingsActivity : AppCompatActivity() {
     
     private lateinit var binding: ActivitySettingsBinding
     private lateinit var settingsManager: SettingsManager
     
-    // 当前设置值（单位：厘秒，即0.1秒为一个单位）
+    // 当前设置值
     private var currentMinInterval = 10
     private var currentMaxInterval = 20
     private var currentLoopCount = -1
+    
+    // 安全性设置
+    private var currentOffsetRange = 8
+    private var currentPauseMinClicks = 20
+    private var currentPauseMaxClicks = 50
+    private var currentPauseMinDuration = 1000
+    private var currentPauseMaxDuration = 3000
+    
+    // 操作类型默认值
+    private var currentLongPressDuration = 500
+    private var currentWaitDuration = 1000
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,8 +57,21 @@ class SettingsActivity : AppCompatActivity() {
         currentMaxInterval = settings.maxIntervalMs / 10
         currentLoopCount = settings.loopCount
         
+        // 安全性设置
+        currentOffsetRange = settings.offsetRange
+        currentPauseMinClicks = settings.pauseMinClicks
+        currentPauseMaxClicks = settings.pauseMaxClicks
+        currentPauseMinDuration = settings.pauseMinDuration
+        currentPauseMaxDuration = settings.pauseMaxDuration
+        
+        // 操作类型默认值
+        currentLongPressDuration = settings.longPressDuration
+        currentWaitDuration = settings.waitDuration
+        
         updateSeekBarDisplay()
         updateLoopCountDisplay()
+        updateSecuritySettingsDisplay()
+        updateOperationSettingsDisplay()
     }
     
     /**
@@ -114,6 +138,96 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
         
+        // ===== 安全性设置 =====
+        
+        // 偏移范围滑动条
+        binding.seekOffsetRange.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                currentOffsetRange = progress
+                updateSecuritySettingsDisplay()
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+        
+        // 停顿频率最小值
+        binding.seekPauseMinClicks.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (progress > currentPauseMaxClicks) {
+                    seekBar?.progress = currentPauseMaxClicks
+                    return
+                }
+                currentPauseMinClicks = progress
+                updateSecuritySettingsDisplay()
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+        
+        // 停顿频率最大值
+        binding.seekPauseMaxClicks.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (progress < currentPauseMinClicks) {
+                    seekBar?.progress = currentPauseMinClicks
+                    return
+                }
+                currentPauseMaxClicks = progress
+                updateSecuritySettingsDisplay()
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+        
+        // 停顿时长最小值
+        binding.seekPauseMinDuration.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (progress > currentPauseMaxDuration / 100) {
+                    seekBar?.progress = currentPauseMaxDuration / 100
+                    return
+                }
+                currentPauseMinDuration = progress * 100
+                updateSecuritySettingsDisplay()
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+        
+        // 停顿时长最大值
+        binding.seekPauseMaxDuration.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (progress < currentPauseMinDuration / 100) {
+                    seekBar?.progress = currentPauseMinDuration / 100
+                    return
+                }
+                currentPauseMaxDuration = progress * 100
+                updateSecuritySettingsDisplay()
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+        
+        // ===== 操作类型默认值 =====
+        
+        // 长按时长
+        binding.seekLongPressDuration.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                currentLongPressDuration = (progress + 1) * 100
+                updateOperationSettingsDisplay()
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+        
+        // 等待时长
+        binding.seekWaitDuration.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                currentWaitDuration = (progress + 1) * 100
+                updateOperationSettingsDisplay()
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+        
         // 保存按钮
         binding.btnSaveSettings.setOnClickListener {
             saveSettings()
@@ -149,6 +263,33 @@ class SettingsActivity : AppCompatActivity() {
     }
     
     /**
+     * 更新安全性设置显示
+     */
+    private fun updateSecuritySettingsDisplay() {
+        binding.seekOffsetRange.progress = currentOffsetRange
+        binding.tvOffsetRange.text = "±${currentOffsetRange}px"
+        
+        binding.seekPauseMinClicks.progress = currentPauseMinClicks
+        binding.seekPauseMaxClicks.progress = currentPauseMaxClicks
+        binding.tvPauseClicksRange.text = "${currentPauseMinClicks}-${currentPauseMaxClicks}次"
+        
+        binding.seekPauseMinDuration.progress = currentPauseMinDuration / 100
+        binding.seekPauseMaxDuration.progress = currentPauseMaxDuration / 100
+        binding.tvPauseDurationRange.text = "${currentPauseMinDuration / 1000}-${currentPauseMaxDuration / 1000}秒"
+    }
+    
+    /**
+     * 更新操作类型默认值显示
+     */
+    private fun updateOperationSettingsDisplay() {
+        binding.seekLongPressDuration.progress = currentLongPressDuration / 100 - 1
+        binding.tvLongPressDuration.text = "${currentLongPressDuration}ms"
+        
+        binding.seekWaitDuration.progress = currentWaitDuration / 100 - 1
+        binding.tvWaitDuration.text = "${currentWaitDuration}ms"
+    }
+    
+    /**
      * 保存设置
      */
     private fun saveSettings() {
@@ -171,7 +312,16 @@ class SettingsActivity : AppCompatActivity() {
         val settings = AppSettings(
             minIntervalMs = currentMinInterval * 10,
             maxIntervalMs = currentMaxInterval * 10,
-            loopCount = loopCount
+            loopCount = loopCount,
+            // 安全性设置
+            offsetRange = currentOffsetRange,
+            pauseMinClicks = currentPauseMinClicks,
+            pauseMaxClicks = currentPauseMaxClicks,
+            pauseMinDuration = currentPauseMinDuration,
+            pauseMaxDuration = currentPauseMaxDuration,
+            // 操作类型默认值
+            longPressDuration = currentLongPressDuration,
+            waitDuration = currentWaitDuration
         )
         
         settingsManager.saveSettings(settings)

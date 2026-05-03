@@ -90,6 +90,8 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         checkAndRequestPermissions()
         updatePermissionHint()
+        // 刷新设置
+        floatingService?.refreshSettings()
     }
     
     override fun onDestroy() {
@@ -332,6 +334,7 @@ class MainActivity : AppCompatActivity() {
             rvSchemes.layoutManager = LinearLayoutManager(this)
             rvSchemes.adapter = SchemeAdapter(schemes) { scheme ->
                 floatingService?.loadScheme(scheme)
+                Toast.makeText(this@MainActivity, getString(R.string.scheme_load_success), Toast.LENGTH_SHORT).show()
             }
         }
         

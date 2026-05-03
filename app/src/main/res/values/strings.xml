@@ -14,6 +14,7 @@
     <string name="btn_record">录制</string>
     <string name="btn_save">保存方案</string>
     <string name="btn_load">加载方案</string>
+    <string name="btn_save_settings">保存设置</string>
     
     <!-- 状态 -->
     <string name="status_idle">待机中</string>
@@ -27,6 +28,11 @@
     <string name="recording_complete">录制完成</string>
     <string name="no_points_recorded">请先录制点位</string>
     
+    <!-- 操作类型 -->
+    <string name="op_type_click">点击</string>
+    <string name="op_type_long_press">长按</string>
+    <string name="op_type_wait">等待</string>
+    
     <!-- 设置页面 -->
     <string name="settings_title">设置</string>
     <string name="settings_interval_title">点击间隔</string>
@@ -36,6 +42,22 @@
     <string name="settings_loop_count">循环次数</string>
     <string name="settings_infinite_loop">无限循环</string>
     <string name="settings_loop_times">次</string>
+    
+    <!-- 安全性设置 -->
+    <string name="settings_security_title">安全性设置</string>
+    <string name="settings_offset_range">点击位置随机偏移</string>
+    <string name="settings_offset_summary">每次点击在指定范围内随机偏移位置</string>
+    <string name="settings_pause_frequency">偶发微停顿频率</string>
+    <string name="settings_pause_frequency_summary">每隔一定次数点击后自动暂停一段时间</string>
+    <string name="settings_pause_duration">停顿时长</string>
+    
+    <!-- 操作默认值 -->
+    <string name="settings_long_press_duration">长按时长</string>
+    <string name="settings_wait_duration">等待时长</string>
+    
+    <!-- 定时启动 -->
+    <string name="settings_scheduled_start">定时启动</string>
+    <string name="settings_scheduled_summary">设定时间后自动开始执行</string>
     
     <!-- 方案管理 -->
     <string name="scheme_name_hint">方案名称</string>
@@ -60,4 +82,7 @@
     <string name="cancel">取消</string>
     <string name="delete">删除</string>
     <string name="click_to_add_point">点击此处添加点位</string>
+    
+    <!-- 定时 -->
+    <string name="scheduled_set">已设定 %s 启动</string>
 </resources>

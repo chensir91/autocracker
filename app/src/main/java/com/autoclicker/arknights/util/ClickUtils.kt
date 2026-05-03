@@ -1,10 +1,9 @@
 package com.autoclicker.arknights.util
 
 import android.accessibilityservice.AccessibilityService
-import android.accessibilityservice.AccessibilityService.GestureResultCallback
-import android.graphics.Path
 import android.accessibilityservice.GestureDescription
-import android.accessibilityservice.GestureDescription.StrokeDescription
+import android.graphics.Path
+import kotlin.random.Random
 
 /**
  * 点击工具类，用于通过AccessibilityService执行模拟点击
@@ -17,6 +16,7 @@ object ClickUtils {
      * @param x X坐标
      * @param y Y坐标
      * @param duration 点击持续时间（毫秒），默认10ms
+     * @param offsetRange 随机偏移范围（像素），0表示不偏移
      * @param callback 点击结果回调
      */
     fun click(
@@ -24,11 +24,76 @@ object ClickUtils {
         x: Float,
         y: Float,
         duration: Long = 10,
+        offsetRange: Int = 0,
         callback: ((Boolean) -> Unit)? = null
     ) {
+        // 应用随机偏移
+        val actualX = if (offsetRange > 0) {
+            x + Random.nextInt(-offsetRange, offsetRange + 1)
+        } else {
+            x
+        }
+        val actualY = if (offsetRange > 0) {
+            y + Random.nextInt(-offsetRange, offsetRange + 1)
+        } else {
+            y
+        }
+        
         val path = Path()
-        path.moveTo(x, y)
-        path.lineTo(x, y)
+        path.moveTo(actualX, actualY)
+        path.lineTo(actualX, actualY)
+        
+        val strokeDescription = GestureDescription.StrokeDescription(path, 0, duration)
+        val gestureDescription = GestureDescription.Builder()
+            .addStroke(strokeDescription)
+            .build()
+        
+        service.dispatchGesture(
+            gestureDescription,
+            object : AccessibilityService.GestureResultCallback() {
+                override fun onCompleted(gestureDescription: GestureDescription) {
+                    callback?.invoke(true)
+                }
+                
+                override fun onCancelled(gestureDescription: GestureDescription) {
+                    callback?.invoke(false)
+                }
+            },
+            null
+        )
+    }
+    
+    /**
+     * 执行长按操作
+     * @param service AccessibilityService实例
+     * @param x X坐标
+     * @param y Y坐标
+     * @param duration 按住时长（毫秒）
+     * @param offsetRange 随机偏移范围（像素），0表示不偏移
+     * @param callback 点击结果回调
+     */
+    fun longPress(
+        service: AccessibilityService,
+        x: Float,
+        y: Float,
+        duration: Long = 500,
+        offsetRange: Int = 0,
+        callback: ((Boolean) -> Unit)? = null
+    ) {
+        // 应用随机偏移
+        val actualX = if (offsetRange > 0) {
+            x + Random.nextInt(-offsetRange, offsetRange + 1)
+        } else {
+            x
+        }
+        val actualY = if (offsetRange > 0) {
+            y + Random.nextInt(-offsetRange, offsetRange + 1)
+        } else {
+            y
+        }
+        
+        val path = Path()
+        path.moveTo(actualX, actualY)
         
         val strokeDescription = GestureDescription.StrokeDescription(path, 0, duration)
         val gestureDescription = GestureDescription.Builder()

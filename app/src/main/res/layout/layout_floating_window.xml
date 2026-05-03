@@ -43,6 +43,18 @@
         android:src="@android:drawable/ic_menu_close_clear_cancel"
         android:tint="@color/text_secondary" />
 
+    <!-- 定时启动按钮 -->
+    <ImageButton
+        android:id="@+id/btnScheduled"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_marginStart="6dp"
+        android:background="@drawable/bg_floating_button"
+        android:contentDescription="定时启动"
+        android:padding="10dp"
+        android:src="@android:drawable/ic_menu_recent_history"
+        android:tint="@color/primary" />
+
     <!-- 设置按钮 -->
     <ImageButton
         android:id="@+id/btnSettings"
@@ -54,5 +66,28 @@
         android:padding="10dp"
         android:src="@android:drawable/ic_menu_preferences"
         android:tint="@color/secondary" />
+
+    <!-- 最小化按钮 -->
+    <ImageButton
+        android:id="@+id/btnMinimize"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_marginStart="6dp"
+        android:background="@drawable/bg_floating_button"
+        android:contentDescription="最小化"
+        android:padding="10dp"
+        android:src="@android:drawable/ic_menu_crop"
+        android:tint="@color/text_secondary" />
+
+    <!-- 倒计时显示 -->
+    <TextView
+        android:id="@+id/tvCountdown"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:textColor="@color/status_running"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
 
 </LinearLayout>
