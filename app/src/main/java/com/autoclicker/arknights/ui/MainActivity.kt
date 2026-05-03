@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.provider.Settings
+import android.view.LayoutInflater
 import android.view.View
 import android.widget.EditText
 import android.widget.Toast
