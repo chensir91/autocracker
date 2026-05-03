@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">明日方舟连点器</string>
+    <string name="app_name_short">连点器</string>
+    
+    <!-- 无障碍服务描述 -->
+    <string name="accessibility_service_description">本服务用于自动点击屏幕，帮助您完成重复性点击操作。请在设置中开启此服务。</string>
+    
+    <!-- 主界面 -->
+    <string name="btn_start">开始</string>
+    <string name="btn_pause">暂停</string>
+    <string name="btn_stop">停止</string>
+    <string name="btn_settings">设置</string>
+    <string name="btn_record">录制</string>
+    <string name="btn_save">保存方案</string>
+    <string name="btn_load">加载方案</string>
+    
+    <!-- 状态 -->
+    <string name="status_idle">待机中</string>
+    <string name="status_recording">录制模式</string>
+    <string name="status_running">运行中</string>
+    <string name="status_paused">已暂停</string>
+    
+    <!-- 录制相关 -->
+    <string name="recording_hint">点击屏幕录制点位</string>
+    <string name="point_recorded">已录制 %d 个点位</string>
+    <string name="recording_complete">录制完成</string>
+    <string name="no_points_recorded">请先录制点位</string>
+    
+    <!-- 设置页面 -->
+    <string name="settings_title">设置</string>
+    <string name="settings_interval_title">点击间隔</string>
+    <string name="settings_interval_summary">随机间隔范围：%1$.1fs ~ %2$.1fs</string>
+    <string name="settings_min_interval">最小间隔（秒）</string>
+    <string name="settings_max_interval">最大间隔（秒）</string>
+    <string name="settings_loop_count">循环次数</string>
+    <string name="settings_infinite_loop">无限循环</string>
+    <string name="settings_loop_times">次</string>
+    
+    <!-- 方案管理 -->
+    <string name="scheme_name_hint">方案名称</string>
+    <string name="scheme_save_success">方案已保存</string>
+    <string name="scheme_load_success">方案已加载</string>
+    <string name="scheme_delete_success">方案已删除</string>
+    <string name="scheme_empty">暂无保存的方案</string>
+    
+    <!-- 通知 -->
+    <string name="notification_channel_name">连点器服务</string>
+    <string name="notification_channel_desc">保持连点器在后台运行</string>
+    <string name="notification_title">连点器运行中</string>
+    <string name="notification_content">点击停止服务</string>
+    
+    <!-- 权限提示 -->
+    <string name="permission_required">需要权限</string>
+    <string name="accessibility_permission_hint">请开启无障碍服务以使用自动点击功能</string>
+    <string name="overlay_permission_hint">请开启悬浮窗权限以显示控制面板</string>
+    
+    <!-- 其他 -->
+    <string name="confirm">确定</string>
+    <string name="cancel">取消</string>
+    <string name="delete">删除</string>
+    <string name="click_to_add_point">点击此处添加点位</string>
+</resources>

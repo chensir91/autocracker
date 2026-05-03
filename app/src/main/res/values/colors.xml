@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 主色调 -->
+    <color name="primary">#FF6B35</color>
+    <color name="primary_dark">#E55A2B</color>
+    <color name="primary_variant">#FF8C5A</color>
+    
+    <!-- 辅助色 -->
+    <color name="secondary">#4A90D9</color>
+    <color name="secondary_variant">#3A7BC8</color>
+    
+    <!-- 状态色 -->
+    <color name="status_recording">#FF4444</color>
+    <color name="status_running">#4CAF50</color>
+    <color name="status_paused">#FFC107</color>
+    <color name="status_idle">#9E9E9E</color>
+    
+    <!-- 背景色 -->
+    <color name="background">#FAFAFA</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="floating_window_bg">#E6553030</color>
+    <color name="floating_button_bg">#80FFFFFF</color>
+    
+    <!-- 文字色 -->
+    <color name="text_primary">#212121</color>
+    <color name="text_secondary">#757575</color>
+    <color name="text_on_primary">#FFFFFF</color>
+    
+    <!-- 录制点位颜色 -->
+    <color name="point_marker">#FF6B35</color>
+    <color name="point_number">#FFFFFF</color>
+</resources>

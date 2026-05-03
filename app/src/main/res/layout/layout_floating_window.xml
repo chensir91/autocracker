@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/floatingContainer"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_floating_window"
+    android:gravity="center"
+    android:orientation="horizontal"
+    android:padding="8dp">
+
+    <!-- 录制按钮 -->
+    <ImageButton
+        android:id="@+id/btnRecord"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:background="@drawable/bg_floating_button"
+        android:contentDescription="录制"
+        android:padding="10dp"
+        android:src="@android:drawable/ic_menu_edit"
+        android:tint="@color/status_recording" />
+
+    <!-- 开始/暂停按钮 -->
+    <ImageButton
+        android:id="@+id/btnStartPause"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_marginStart="6dp"
+        android:background="@drawable/bg_floating_button"
+        android:contentDescription="开始"
+        android:padding="10dp"
+        android:src="@android:drawable/ic_media_play"
+        android:tint="@color/status_running" />
+
+    <!-- 停止按钮 -->
+    <ImageButton
+        android:id="@+id/btnStop"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_marginStart="6dp"
+        android:background="@drawable/bg_floating_button"
+        android:contentDescription="停止"
+        android:padding="10dp"
+        android:src="@android:drawable/ic_menu_close_clear_cancel"
+        android:tint="@color/text_secondary" />
+
+    <!-- 设置按钮 -->
+    <ImageButton
+        android:id="@+id/btnSettings"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_marginStart="6dp"
+        android:background="@drawable/bg_floating_button"
+        android:contentDescription="设置"
+        android:padding="10dp"
+        android:src="@android:drawable/ic_menu_preferences"
+        android:tint="@color/secondary" />
+
+</LinearLayout>

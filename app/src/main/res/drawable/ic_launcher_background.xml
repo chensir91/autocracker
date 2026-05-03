@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    
+    <!-- 背景圆形 -->
+    <path
+        android:fillColor="#FF6B35"
+        android:pathData="M24,24m-24,0a24,24 0,1 1,48 0a24,24 0,1 1,-48 0"/>
+    
+    <!-- 手指点击图标 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,12c-0.6,0 -1,0.4 -1,1v8c0,0.3 0.1,0.6 0.3,0.8l2,2c0.4,0.4 1,0.4 1.4,0s0.4,-1 0,-1.4l-1.7,-1.7V13C25,12.4 24.6,12 24,12z"/>
+    
+    <!-- 圆圈标记 -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.5"
+        android:fillColor="#00000000"
+        android:pathData="M24,24m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0"/>
+        
+    <!-- 点击效果 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,24m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0"/>
+</vector>
