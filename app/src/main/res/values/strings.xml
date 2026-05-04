@@ -85,4 +85,21 @@
     
     <!-- 定时 -->
     <string name="scheduled_set">已设定 %s 启动</string>
+    
+    <!-- 点位编辑 -->
+    <string name="edit_point">编辑点位</string>
+    <string name="point_list">点位列表</string>
+    <string name="no_points_hint">暂无点位，点击录制或加载方案</string>
+    <string name="point_updated">点位已更新</string>
+    <string name="point_deleted">点位已删除</string>
+    <string name="confirm_delete">确定要删除这个点位吗？</string>
+    
+    <!-- 撤销 -->
+    <string name="undo_last_point">撤销</string>
+    <string name="no_point_to_undo">没有可撤销的点位</string>
+    <string name="point_undone">已撤销最后一个点位</string>
+    
+    <!-- 完成通知 -->
+    <string name="task_completed">连点器任务完成</string>
+    <string name="task_completed_detail">共执行 %d 次循环</string>
 </resources>

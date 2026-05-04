@@ -8,6 +8,9 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.PixelFormat
 import android.os.Binder
 import android.os.Build
@@ -23,6 +26,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
@@ -38,7 +42,7 @@ import com.autoclicker.arknights.util.ClickUtils
 import kotlin.random.Random
 
 /**
- * 悬浮窗服务 v1.1.0
+ * 悬浮窗服务 v1.2.0
  * 提供悬浮窗UI和控制连点器的核心逻辑
  */
 class FloatingWindowService : Service() {
@@ -50,6 +54,10 @@ class FloatingWindowService : Service() {
     private var miniLayoutParams: WindowManager.LayoutParams? = null
     private var recordingOverlay: RecordingOverlayView? = null
     private var overlayParams: WindowManager.LayoutParams? = null
+    
+    // 点击反馈视图
+    private var clickFeedbackView: ClickFeedbackView? = null
+    private var clickFeedbackParams: WindowManager.LayoutParams? = null
     
     private val binder = LocalBinder()
     private val handler = Handler(Looper.getMainLooper())
@@ -75,6 +83,11 @@ class FloatingWindowService : Service() {
     private var clickCountSinceLastPause = 0
     private var nextPauseAt = 0
     
+    // 当前进度
+    private var currentStep = 0
+    private var totalSteps = 0
+    private var totalCycles = 0
+    
     // 回调接口
     var onStateChanged: ((State) -> Unit)? = null
     var onPointsChanged: ((Int) -> Unit)? = null
@@ -96,6 +109,7 @@ class FloatingWindowService : Service() {
         settingsManager = SettingsManager.getInstance(this)
         settings = settingsManager.getSettings()
         createNotificationChannel()
+        createCompletionNotificationChannel()
         createFloatingWindow()
         createMiniFloatingWindow()
         checkScheduledStart()
@@ -116,6 +130,7 @@ class FloatingWindowService : Service() {
         stopClicking()
         cancelScheduledStart()
         hideRecordingOverlay()
+        hideClickFeedback()
         try {
             windowManager.removeView(floatingView)
             if (isMinimized && ::miniFloatView.isInitialized) {
@@ -169,6 +184,53 @@ class FloatingWindowService : Service() {
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
+    }
+    
+    /**
+     * 发送任务完成通知
+     */
+    private fun sendCompletionNotification(cycleCount: Int) {
+        val notificationManager = getSystemService(NotificationManager::class.java)
+        
+        val intent = Intent(this, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE
+        )
+        
+        val notification = NotificationCompat.Builder(this, COMPLETION_CHANNEL_ID)
+            .setContentTitle("连点器任务完成")
+            .setContentText("共执行 ${cycleCount} 次循环")
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .build()
+        
+        try {
+            notificationManager.notify(COMPLETION_NOTIFICATION_ID, notification)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error sending completion notification", e)
+        }
+    }
+    
+    /**
+     * 创建完成通知渠道
+     */
+    private fun createCompletionNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                COMPLETION_CHANNEL_ID,
+                "任务完成通知",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "连点器任务完成时的通知"
+            }
+            val notificationManager = getSystemService(NotificationManager::class.java)
+            notificationManager.createNotificationChannel(channel)
+        }
     }
     
     /**
@@ -230,6 +292,11 @@ class FloatingWindowService : Service() {
         
         floatingView.findViewById<ImageButton>(R.id.btnStop).setOnClickListener {
             stop()
+        }
+        
+        // 撤销按钮
+        floatingView.findViewById<ImageButton>(R.id.btnUndo)?.setOnClickListener {
+            undoLastPoint()
         }
         
         floatingView.findViewById<ImageButton>(R.id.btnSettings).setOnClickListener {
@@ -488,6 +555,22 @@ class FloatingWindowService : Service() {
     }
     
     /**
+     * 撤销最后一个点位
+     */
+    fun undoLastPoint() {
+        if (recordedPoints.isNotEmpty()) {
+            recordedPoints.removeAt(recordedPoints.size - 1)
+            onPointsChanged?.invoke(recordedPoints.size)
+            Toast.makeText(this, "已撤销最后一个点位", Toast.LENGTH_SHORT).show()
+            
+            // 更新录制覆盖层
+            recordingOverlay?.setPoints(recordedPoints)
+        } else {
+            Toast.makeText(this, "没有可撤销的点位", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
      * 添加等待步骤
      */
     fun addWaitStep(durationMs: Long = settings.waitDuration.toLong()) {
@@ -517,6 +600,7 @@ class FloatingWindowService : Service() {
      */
     fun finishRecording() {
         isRecording = false
+        hideRecordingOverlay()
         updateButtonStates()
         onStateChanged?.invoke(State.IDLE)
         Toast.makeText(
@@ -555,6 +639,9 @@ class FloatingWindowService : Service() {
             isRunning = true
             isPaused = false
             clickCountSinceLastPause = 0
+            currentStep = 0
+            totalSteps = recordedPoints.size
+            totalCycles = 0
             // 计算下次停顿位置
             nextPauseAt = Random.nextInt(settings.pauseMinClicks, settings.pauseMaxClicks + 1)
         }
@@ -568,6 +655,75 @@ class FloatingWindowService : Service() {
         }.apply {
             isDaemon = true
             start()
+        }
+    }
+    
+    /**
+     * 更新进度显示
+     */
+    private fun updateProgressDisplay() {
+        handler.post {
+            try {
+                val tvProgress = floatingView.findViewById<TextView>(R.id.tvProgress)
+                if (isRunning && !isMinimized) {
+                    tvProgress?.visibility = View.VISIBLE
+                    tvProgress?.text = "${currentStep}/${totalSteps}"
+                } else {
+                    tvProgress?.visibility = View.GONE
+                }
+            } catch (e: Exception) {
+                // View可能已被移除
+            }
+        }
+    }
+    
+    /**
+     * 显示点击反馈
+     */
+    private fun showClickFeedback(x: Float, y: Float) {
+        handler.post {
+            if (clickFeedbackView == null) {
+                clickFeedbackView = ClickFeedbackView(this)
+                clickFeedbackParams = WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                    } else {
+                        @Suppress("DEPRECATION")
+                        WindowManager.LayoutParams.TYPE_PHONE
+                    },
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                    PixelFormat.TRANSLUCENT
+                ).apply {
+                    gravity = Gravity.TOP or Gravity.START
+                }
+                
+                try {
+                    windowManager.addView(clickFeedbackView, clickFeedbackParams)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error adding click feedback view", e)
+                }
+            }
+            
+            clickFeedbackView?.showAt(x.toInt(), y.toInt())
+        }
+    }
+    
+    /**
+     * 隐藏点击反馈
+     */
+    private fun hideClickFeedback() {
+        handler.post {
+            clickFeedbackView?.let {
+                try {
+                    windowManager.removeView(it)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error removing click feedback", e)
+                }
+            }
+            clickFeedbackView = null
         }
     }
     
@@ -600,8 +756,10 @@ class FloatingWindowService : Service() {
             
             // 检查循环次数
             if (settings.loopCount > 0 && loopIndex >= settings.loopCount) {
+                val completedCycles = loopIndex
                 handler.post {
                     Toast.makeText(this, "已完成 ${settings.loopCount} 次循环", Toast.LENGTH_SHORT).show()
+                    sendCompletionNotification(completedCycles)
                     stopClicking()
                 }
                 break
@@ -610,9 +768,15 @@ class FloatingWindowService : Service() {
             for ((index, point) in recordedPoints.withIndex()) {
                 if (!isRunning || isPaused) break
                 
+                // 更新当前步骤
+                currentStep = index + 1
+                updateProgressDisplay()
+                
                 // 处理不同操作类型
                 when (point.type) {
                     OperationType.CLICK -> {
+                        // 显示点击反馈
+                        showClickFeedback(point.x, point.y)
                         // 普通点击，可能需要偏移
                         ClickUtils.click(
                             service = service,
@@ -625,6 +789,7 @@ class FloatingWindowService : Service() {
                     }
                     OperationType.LONG_PRESS -> {
                         // 长按
+                        showClickFeedback(point.x, point.y)
                         ClickUtils.longPress(
                             service = service,
                             x = point.x,
@@ -668,6 +833,7 @@ class FloatingWindowService : Service() {
             }
             
             loopIndex++
+            totalCycles = loopIndex
         }
     }
     
@@ -683,6 +849,16 @@ class FloatingWindowService : Service() {
             if (isPaused) getString(R.string.status_paused) else getString(R.string.status_running),
             Toast.LENGTH_SHORT
         ).show()
+        
+        // 隐藏进度显示
+        if (isPaused) {
+            handler.post {
+                try {
+                    val tvProgress = floatingView.findViewById<TextView>(R.id.tvProgress)
+                    tvProgress?.visibility = View.GONE
+                } catch (e: Exception) {}
+            }
+        }
     }
     
     /**
@@ -699,8 +875,18 @@ class FloatingWindowService : Service() {
     private fun stopClicking() {
         isRunning = false
         isPaused = false
+        currentStep = 0
         clickThread?.interrupt()
         clickThread = null
+        
+        // 隐藏进度显示
+        handler.post {
+            try {
+                val tvProgress = floatingView.findViewById<TextView>(R.id.tvProgress)
+                tvProgress?.visibility = View.GONE
+            } catch (e: Exception) {}
+        }
+        
         updateButtonStates()
         onStateChanged?.invoke(State.IDLE)
     }
@@ -732,6 +918,8 @@ class FloatingWindowService : Service() {
         val btnStartPause = floatingView.findViewById<ImageButton>(R.id.btnStartPause)
         val btnStop = floatingView.findViewById<ImageButton>(R.id.btnStop)
         val btnSettings = floatingView.findViewById<ImageButton>(R.id.btnSettings)
+        val btnUndo = floatingView.findViewById<ImageButton>(R.id.btnUndo)
+        val tvStartPauseLabel = floatingView.findViewById<TextView>(R.id.tvStartPauseLabel)
         
         handler.post {
             when {
@@ -740,6 +928,8 @@ class FloatingWindowService : Service() {
                     btnStartPause?.isEnabled = false
                     btnStop?.isEnabled = false
                     btnSettings?.isEnabled = false
+                    btnUndo?.isEnabled = recordedPoints.isNotEmpty()
+                    tvStartPauseLabel?.text = "开始"
                 }
                 isRunning -> {
                     btnRecord?.isEnabled = false
@@ -747,6 +937,8 @@ class FloatingWindowService : Service() {
                     btnStartPause?.isEnabled = true
                     btnStop?.isEnabled = true
                     btnSettings?.isEnabled = false
+                    btnUndo?.isEnabled = false
+                    tvStartPauseLabel?.text = "暂停"
                 }
                 isPaused -> {
                     btnRecord?.isEnabled = false
@@ -754,6 +946,8 @@ class FloatingWindowService : Service() {
                     btnStartPause?.isEnabled = true
                     btnStop?.isEnabled = true
                     btnSettings?.isEnabled = false
+                    btnUndo?.isEnabled = false
+                    tvStartPauseLabel?.text = "继续"
                 }
                 else -> {
                     btnRecord?.isEnabled = true
@@ -762,6 +956,8 @@ class FloatingWindowService : Service() {
                     btnStartPause?.isEnabled = recordedPoints.isNotEmpty()
                     btnStop?.isEnabled = false
                     btnSettings?.isEnabled = true
+                    btnUndo?.isEnabled = recordedPoints.isNotEmpty()
+                    tvStartPauseLabel?.text = "开始"
                 }
             }
         }
@@ -777,6 +973,12 @@ class FloatingWindowService : Service() {
         recordingOverlay = RecordingOverlayView(this).apply {
             onPointRecorded = { point ->
                 // 录制的默认都是点击类型
+            }
+            onUndoPoint = {
+                if (recordedPoints.isNotEmpty()) {
+                    recordedPoints.removeAt(recordedPoints.size - 1)
+                    onPointsChanged?.invoke(recordedPoints.size)
+                }
             }
             onFinishRecording = {
                 finishRecording()
@@ -845,7 +1047,9 @@ class FloatingWindowService : Service() {
     companion object {
         private const val TAG = "FloatingWindowService"
         private const val CHANNEL_ID = "autoclicker_channel"
+        private const val COMPLETION_CHANNEL_ID = "completion_channel"
         private const val NOTIFICATION_ID = 1
+        private const val COMPLETION_NOTIFICATION_ID = 2
         
         /**
          * 启动服务
@@ -858,5 +1062,76 @@ class FloatingWindowService : Service() {
                 context.startService(intent)
             }
         }
+    }
+}
+
+/**
+ * 点击反馈视图
+ * 在点击位置显示绿色圆圈
+ */
+class ClickFeedbackView(context: Context) : View(context) {
+    
+    private val circlePaint = Paint().apply {
+        color = Color.parseColor("#4CAF50")  // 绿色
+        style = Paint.Style.FILL
+        isAntiAlias = true
+        alpha = 200
+    }
+    
+    private val strokePaint = Paint().apply {
+        color = Color.parseColor("#2E7D32")  // 深绿色边框
+        style = Paint.Style.STROKE
+        strokeWidth = 4f
+        isAntiAlias = true
+    }
+    
+    private val handler = Handler(Looper.getMainLooper())
+    private var hideRunnable: Runnable? = null
+    
+    private val circleRadius = 30f
+    
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        // 绘制圆圈
+        canvas.drawCircle(width / 2f, height / 2f, circleRadius, circlePaint)
+        canvas.drawCircle(width / 2f, height / 2f, circleRadius, strokePaint)
+    }
+    
+    fun showAt(x: Int, y: Int) {
+        // 取消之前的隐藏任务
+        hideRunnable?.let { handler.removeCallbacks(it) }
+        
+        // 设置位置
+        val params = layoutParams as? WindowManager.LayoutParams
+        params?.let {
+            it.x = x - 30
+            it.y = y - 30
+            it.width = 60
+            it.height = 60
+            if (context is FloatingWindowService) {
+                try {
+                    (context as FloatingWindowService).let { service ->
+                        val wm = service.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+                        wm.updateViewLayout(this, it)
+                    }
+                } catch (e: Exception) {}
+            }
+        }
+        
+        // 3秒后自动隐藏
+        hideRunnable = Runnable { hide() }
+        handler.postDelayed(hideRunnable, 300)
+        
+        invalidate()
+    }
+    
+    private fun hide() {
+        try {
+            if (context is FloatingWindowService) {
+                val service = context as FloatingWindowService
+                val wm = service.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+                wm.removeView(this)
+            }
+        } catch (e: Exception) {}
     }
 }

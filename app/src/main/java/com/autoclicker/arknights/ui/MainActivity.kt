@@ -6,13 +6,16 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.View
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.EditText
+import android.widget.Spinner
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -23,6 +26,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.autoclicker.arknights.R
 import com.autoclicker.arknights.data.ClickPoint
 import com.autoclicker.arknights.data.ClickScheme
+import com.autoclicker.arknights.data.OperationType
 import com.autoclicker.arknights.data.PresetSchemes
 import com.autoclicker.arknights.data.SettingsManager
 import com.autoclicker.arknights.databinding.ActivityMainBinding
@@ -32,13 +36,15 @@ import com.autoclicker.arknights.util.PermissionUtils
 import com.google.android.material.tabs.TabLayout
 
 /**
- * 主Activity
+ * 主Activity v1.2.0
  * 负责初始化权限、启动服务、管理UI交互
+ * 新增点位列表显示和编辑功能
  */
 class MainActivity : AppCompatActivity() {
     
     private lateinit var binding: ActivityMainBinding
     private lateinit var settingsManager: SettingsManager
+    private lateinit var pointAdapter: PointAdapter
     
     private var floatingService: FloatingWindowService? = null
     private var isServiceBound = false
@@ -80,6 +86,7 @@ class MainActivity : AppCompatActivity() {
         
         settingsManager = SettingsManager.getInstance(this)
         
+        setupPointList()
         setupClickListeners()
         
         // 检查是否需要打开设置页面
@@ -94,6 +101,8 @@ class MainActivity : AppCompatActivity() {
         updatePermissionHint()
         // 刷新设置
         floatingService?.refreshSettings()
+        // 刷新点位列表
+        refreshPointList()
     }
     
     override fun onDestroy() {
@@ -102,6 +111,161 @@ class MainActivity : AppCompatActivity() {
             unbindService(serviceConnection)
             isServiceBound = false
         }
+    }
+    
+    /**
+     * 设置点位列表
+     */
+    private fun setupPointList() {
+        pointAdapter = PointAdapter(
+            points = mutableListOf(),
+            onEditClick = { position, point ->
+                showEditPointDialog(position, point)
+            },
+            onDeleteClick = { position ->
+                deletePoint(position)
+            }
+        )
+        
+        binding.rvPoints.apply {
+            layoutManager = LinearLayoutManager(this@MainActivity)
+            adapter = pointAdapter
+        }
+    }
+    
+    /**
+     * 刷新点位列表
+     */
+    private fun refreshPointList() {
+        val points = floatingService?.getRecordedPoints() ?: emptyList()
+        
+        if (points.isEmpty()) {
+            binding.tvNoPointsHint.visibility = View.VISIBLE
+            binding.rvPoints.visibility = View.GONE
+        } else {
+            binding.tvNoPointsHint.visibility = View.GONE
+            binding.rvPoints.visibility = View.VISIBLE
+            pointAdapter.updatePoints(points.toMutableList())
+        }
+    }
+    
+    /**
+     * 显示编辑点位对话框
+     */
+    private fun showEditPointDialog(position: Int, point: ClickPoint) {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_edit_point, null)
+        
+        val spinnerType = dialogView.findViewById<Spinner>(R.id.spinnerType)
+        val etX = dialogView.findViewById<EditText>(R.id.etX)
+        val etY = dialogView.findViewById<EditText>(R.id.etY)
+        val tvDurationLabel = dialogView.findViewById<TextView>(R.id.tvDurationLabel)
+        val etDuration = dialogView.findViewById<EditText>(R.id.etDuration)
+        
+        // 设置操作类型选项
+        val types = arrayOf("点击", "长按", "等待")
+        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, types)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinnerType.adapter = adapter
+        
+        // 设置初始值
+        when (point.type) {
+            OperationType.CLICK -> spinnerType.setSelection(0)
+            OperationType.LONG_PRESS -> spinnerType.setSelection(1)
+            OperationType.WAIT -> spinnerType.setSelection(2)
+        }
+        
+        etX.setText(point.x.toInt().toString())
+        etY.setText(point.y.toInt().toString())
+        
+        if (point.type != OperationType.CLICK) {
+            tvDurationLabel.visibility = View.VISIBLE
+            etDuration.visibility = View.VISIBLE
+            etDuration.setText(point.duration.toString())
+        }
+        
+        // 类型选择监听
+        spinnerType.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, pos: Int, id: Long) {
+                if (pos == 2) { // 等待
+                    tvDurationLabel.visibility = View.VISIBLE
+                    etDuration.visibility = View.VISIBLE
+                } else {
+                    tvDurationLabel.visibility = View.VISIBLE
+                    etDuration.visibility = View.VISIBLE
+                }
+            }
+            
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+        
+        AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setPositiveButton("保存") { _, _ ->
+                val type = when (spinnerType.selectedItemPosition) {
+                    0 -> OperationType.CLICK
+                    1 -> OperationType.LONG_PRESS
+                    else -> OperationType.WAIT
+                }
+                
+                val newX = etX.text.toString().toFloatOrNull() ?: point.x
+                val newY = etY.text.toString().toFloatOrNull() ?: point.y
+                val newDuration = etDuration.text.toString().toLongOrNull() ?: point.duration
+                
+                val newPoint = point.copy(
+                    x = newX,
+                    y = newY,
+                    type = type,
+                    duration = newDuration
+                )
+                
+                floatingService?.let { service ->
+                    val points = service.getRecordedPoints().toMutableList()
+                    if (position < points.size) {
+                        points[position] = newPoint
+                        // 更新服务中的点位
+                        service.loadScheme(ClickScheme("temp", points))
+                    }
+                }
+                
+                pointAdapter.updatePoint(position, newPoint)
+                Toast.makeText(this, "点位已更新", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    /**
+     * 删除点位
+     */
+    private fun deletePoint(position: Int) {
+        AlertDialog.Builder(this)
+            .setTitle("删除点位")
+            .setMessage("确定要删除这个点位吗？")
+            .setPositiveButton("删除") { _, _ ->
+                floatingService?.let { service ->
+                    val points = service.getRecordedPoints().toMutableList()
+                    if (position < points.size) {
+                        points.removeAt(position)
+                        // 重新编号
+                        val renumbered = points.mapIndexed { index, point ->
+                            point.copy(order = index + 1)
+                        }
+                        service.loadScheme(ClickScheme("temp", renumbered))
+                    }
+                }
+                
+                pointAdapter.removePoint(position)
+                binding.tvPointInfo.text = getString(R.string.point_recorded, pointAdapter.itemCount)
+                
+                if (pointAdapter.itemCount == 0) {
+                    binding.tvNoPointsHint.visibility = View.VISIBLE
+                    binding.rvPoints.visibility = View.GONE
+                }
+                
+                Toast.makeText(this, "点位已删除", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
     
     /**
@@ -194,6 +358,7 @@ class MainActivity : AppCompatActivity() {
         floatingService?.onPointsChanged = { count ->
             runOnUiThread {
                 binding.tvPointInfo.text = getString(R.string.point_recorded, count)
+                refreshPointList()
             }
         }
     }
@@ -205,6 +370,7 @@ class MainActivity : AppCompatActivity() {
         floatingService?.let { service ->
             updateUIFromState(service.getState())
             binding.tvPointInfo.text = getString(R.string.point_recorded, service.getRecordedPoints().size)
+            refreshPointList()
         }
     }
     
@@ -341,6 +507,7 @@ class MainActivity : AppCompatActivity() {
         // 预设方案适配器
         val presetAdapter = PresetSchemeAdapter(presetSchemes) { scheme ->
             floatingService?.loadScheme(scheme)
+            refreshPointList()
             Toast.makeText(this@MainActivity, 
                 "已加载预设方案: ${scheme.name}\n共${scheme.points.size}个步骤", 
                 Toast.LENGTH_SHORT).show()
@@ -350,6 +517,7 @@ class MainActivity : AppCompatActivity() {
         // 我的方案适配器
         val myAdapter = SchemeAdapter(mySchemes) { scheme ->
             floatingService?.loadScheme(scheme)
+            refreshPointList()
             Toast.makeText(this@MainActivity, getString(R.string.scheme_load_success), Toast.LENGTH_SHORT).show()
             dialog.dismiss()
         }
@@ -395,80 +563,5 @@ class MainActivity : AppCompatActivity() {
         })
         
         dialog.show()
-    }
-    
-    /**
-     * 预设方案列表适配器
-     */
-    inner class PresetSchemeAdapter(
-        private val schemes: List<ClickScheme>,
-        private val onItemClick: (ClickScheme) -> Unit
-    ) : RecyclerView.Adapter<PresetSchemeAdapter.ViewHolder>() {
-        
-        inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-            val tvName: android.widget.TextView = itemView.findViewById(R.id.tvSchemeName)
-            val tvInfo: android.widget.TextView = itemView.findViewById(R.id.tvSchemeInfo)
-            val btnDelete: android.widget.ImageButton = itemView.findViewById(R.id.btnDelete)
-        }
-        
-        override fun onCreateViewHolder(parent: android.view.ViewGroup, viewType: Int): ViewHolder {
-            val view = LayoutInflater.from(parent.context)
-                .inflate(R.layout.item_scheme, parent, false)
-            return ViewHolder(view)
-        }
-        
-        override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-            val scheme = schemes[position]
-            holder.tvName.text = scheme.name
-            holder.tvInfo.text = "${scheme.points.size}个步骤"
-            
-            // 预设方案不可删除，隐藏删除按钮
-            holder.btnDelete.visibility = View.GONE
-            
-            holder.itemView.setOnClickListener {
-                onItemClick(scheme)
-            }
-        }
-        
-        override fun getItemCount() = schemes.size
-    }
-    
-    /**
-     * 方案列表适配器
-     */
-    inner class SchemeAdapter(
-        private val schemes: List<ClickScheme>,
-        private val onItemClick: (ClickScheme) -> Unit
-    ) : RecyclerView.Adapter<SchemeAdapter.ViewHolder>() {
-        
-        inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-            val tvName: android.widget.TextView = itemView.findViewById(R.id.tvSchemeName)
-            val tvInfo: android.widget.TextView = itemView.findViewById(R.id.tvSchemeInfo)
-            val btnDelete: android.widget.ImageButton = itemView.findViewById(R.id.btnDelete)
-        }
-        
-        override fun onCreateViewHolder(parent: android.view.ViewGroup, viewType: Int): ViewHolder {
-            val view = LayoutInflater.from(parent.context)
-                .inflate(R.layout.item_scheme, parent, false)
-            return ViewHolder(view)
-        }
-        
-        override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-            val scheme = schemes[position]
-            holder.tvName.text = scheme.name
-            holder.tvInfo.text = "${scheme.points.size}个点位"
-            
-            holder.itemView.setOnClickListener {
-                onItemClick(scheme)
-            }
-            
-            holder.btnDelete.setOnClickListener {
-                settingsManager.deleteScheme(scheme.name)
-                Toast.makeText(this@MainActivity, getString(R.string.scheme_delete_success), Toast.LENGTH_SHORT).show()
-                showLoadDialog() // 刷新列表
-            }
-        }
-        
-        override fun getItemCount() = schemes.size
     }
 }
