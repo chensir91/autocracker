@@ -370,7 +370,18 @@ class RecordingOverlayView(context: Context) : View(context) {
                     }
                 }
                 
-                // 普通点击录制点位
+                // 检查是否点击在录制点位的显示区域（排除按钮区域）
+                // 如果点击在中间区域，返回false让触摸穿透到游戏
+                val topSafeArea = margin + buttonHeight + 100f  // 操作类型选择器下方
+                val bottomSafeArea = height - 200f  // 底部提示区域上方
+                
+                if (y > topSafeArea && y < bottomSafeArea && 
+                    x > undoButtonRight + 20f) {
+                    // 点击在中间安全区域，返回false让触摸穿透到游戏
+                    return false
+                }
+                
+                // 普通点击录制点位（按钮附近区域）
                 when (currentOperationType) {
                     OperationType.CLICK -> {
                         val point = ClickPoint(

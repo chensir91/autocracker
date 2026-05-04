@@ -977,12 +977,17 @@ class FloatingWindowService : Service() {
                 @Suppress("DEPRECATION")
                 WindowManager.LayoutParams.TYPE_PHONE
             },
+            // 正常接收触摸事件，但通过 RecordingOverlayView 的 onTouchEvent 控制触摸流向
+            // 按钮区域由覆盖层处理，其他区域让触摸传递到游戏
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         )
         
         windowManager.addView(recordingOverlay, overlayParams)
+        
+        // 设置悬浮窗为触摸透明模式，让触摸事件穿透到下面的游戏
+        setFloatingWindowTouchTransparent(true)
     }
     
     /**
@@ -996,6 +1001,37 @@ class FloatingWindowService : Service() {
                 Log.e(TAG, "Error removing recording overlay", e)
             }
             recordingOverlay = null
+        }
+        
+        // 恢复悬浮窗的正常触摸模式
+        setFloatingWindowTouchTransparent(false)
+    }
+    
+    /**
+     * 设置悬浮窗的触摸透明模式
+     * 在录制模式下，悬浮窗应该让触摸事件穿透到下面的游戏
+     */
+    private fun setFloatingWindowTouchTransparent(transparent: Boolean) {
+        if (!::floatingView.isInitialized) return
+        
+        try {
+            // 设置 DraggableFrameLayout 为触摸透明模式
+            val draggableContainer = floatingView.findViewById<DraggableFrameLayout>(R.id.draggableContainer)
+            draggableContainer?.touchTransparentMode = transparent
+            
+            // 更新窗口标志
+            if (transparent) {
+                // 添加 FLAG_NOT_TOUCHABLE 让触摸事件穿透到游戏
+                layoutParams.flags = layoutParams.flags or 
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            } else {
+                // 移除 FLAG_NOT_TOUCHABLE，恢复正常模式
+                layoutParams.flags = layoutParams.flags and 
+                    (WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv())
+            }
+            windowManager.updateViewLayout(floatingView, layoutParams)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting touch transparent mode", e)
         }
     }
     
@@ -1091,13 +1127,12 @@ class ClickFeedbackView(context: Context) : View(context) {
             it.y = y - 30
             it.width = 60
             it.height = 60
-            if (context is FloatingWindowService) {
-                try {
-                    (context as FloatingWindowService).let { service ->
-                        val wm = service.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-                        wm.updateViewLayout(this, it)
-                    }
-                } catch (e: Exception) {}
+            // 使用更安全的方式获取 WindowManager，避免强制类型转换
+            try {
+                val wm = context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
+                wm?.updateViewLayout(this, it)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error updating click feedback layout", e)
             }
         }
         
@@ -1111,11 +1146,10 @@ class ClickFeedbackView(context: Context) : View(context) {
     
     private fun hide() {
         try {
-            if (context is FloatingWindowService) {
-                val service = context as FloatingWindowService
-                val wm = service.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-                wm.removeView(this)
-            }
-        } catch (e: Exception) {}
+            val wm = context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
+            wm?.removeView(this)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error hiding click feedback", e)
+        }
     }
 }

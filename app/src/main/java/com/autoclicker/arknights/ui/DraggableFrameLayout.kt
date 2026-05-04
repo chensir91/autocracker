@@ -26,8 +26,16 @@ class DraggableFrameLayout @JvmOverloads constructor(
     var onDragStart: (() -> Unit)? = null
     var onDrag: ((dx: Float, dy: Float) -> Unit)? = null
     var onDragEnd: (() -> Unit)? = null
+    
+    // 录制模式标志 - 在录制模式下不拦截触摸事件，让触摸穿透到下面的游戏
+    var touchTransparentMode = false
 
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+        // 在触摸透明模式下，不拦截任何触摸事件，让事件传递到下面的游戏
+        if (touchTransparentMode) {
+            return false
+        }
+        
         when (ev.action) {
             MotionEvent.ACTION_DOWN -> {
                 lastX = ev.rawX
@@ -48,6 +56,11 @@ class DraggableFrameLayout @JvmOverloads constructor(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        // 在触摸透明模式下，消耗所有触摸事件但不处理，让它们穿透
+        if (touchTransparentMode) {
+            return true
+        }
+        
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 lastX = event.rawX
