@@ -4,7 +4,6 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.content.Intent
 import android.graphics.Path
-import android.os.Bundle
 import android.util.Log
 import com.autoclicker.arknights.util.ClickUtils
 
@@ -46,15 +45,9 @@ class AutoClickAccessibilityService : AccessibilityService() {
         instance = this
         Log.d(TAG, "Service connected")
         
-        // 配置服务信息
+        // 服务配置已通过XML完成，这里只做日志记录
         val info = serviceInfo
-        info.eventTypes = android.view.accessibility.AccessibilityEvent.TYPES_ALL_MASK
-        info.feedbackType = AccessibilityService.FEEDBACK_GENERIC
-        info.flags = AccessibilityService.FLAG_DEFAULT or AccessibilityService.FLAG_REPORT_VIEW_IDS
-        info.notificationTimeout = 100
-        serviceInfo = info
-        
-        Log.d(TAG, "Service configured: canPerformGestures=${info.canPerformGestures}")
+        Log.d(TAG, "Service configured: ${info?.feedbackType}")
     }
     
     override fun onAccessibilityEvent(event: android.view.accessibility.AccessibilityEvent?) {
