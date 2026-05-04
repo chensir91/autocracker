@@ -1,7 +1,10 @@
 package com.autoclicker.arknights.service
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.GestureDescription
 import android.content.Intent
+import android.graphics.Path
+import android.os.Bundle
 import android.util.Log
 import com.autoclicker.arknights.util.ClickUtils
 
@@ -42,6 +45,16 @@ class AutoClickAccessibilityService : AccessibilityService() {
         super.onServiceConnected()
         instance = this
         Log.d(TAG, "Service connected")
+        
+        // 配置服务信息
+        val info = serviceInfo
+        info.eventTypes = android.view.accessibility.AccessibilityEvent.TYPES_ALL_MASK
+        info.feedbackType = AccessibilityService.FEEDBACK_GENERIC
+        info.flags = AccessibilityService.FLAG_DEFAULT or AccessibilityService.FLAG_REPORT_VIEW_IDS
+        info.notificationTimeout = 100
+        serviceInfo = info
+        
+        Log.d(TAG, "Service configured: canPerformGestures=${info.canPerformGestures}")
     }
     
     override fun onAccessibilityEvent(event: android.view.accessibility.AccessibilityEvent?) {
@@ -65,5 +78,35 @@ class AutoClickAccessibilityService : AccessibilityService() {
     fun performClick(x: Float, y: Float) {
         Log.d(TAG, "performClick: ($x, $y)")
         ClickUtils.click(this, x, y)
+    }
+    
+    /**
+     * 执行长按操作
+     * @param x X坐标
+     * @param y Y坐标
+     * @param duration 按压时长（毫秒）
+     */
+    fun performLongPress(x: Float, y: Float, duration: Long = 500L) {
+        Log.d(TAG, "performLongPress: ($x, $y, ${duration}ms)")
+        
+        val path = Path()
+        path.moveTo(x, y)
+        
+        val gestureBuilder = GestureDescription.Builder()
+        gestureBuilder.addStroke(GestureDescription.StrokeDescription(path, 0, duration))
+        
+        dispatchGesture(
+            gestureBuilder.build(),
+            object : AccessibilityService.GestureResultCallback() {
+                override fun onCompleted(gestureDescription: GestureDescription?) {
+                    Log.d(TAG, "Long press gesture completed")
+                }
+                
+                override fun onCancelled(gestureDescription: GestureDescription?) {
+                    Log.w(TAG, "Long press gesture cancelled")
+                }
+            },
+            null
+        )
     }
 }

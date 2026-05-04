@@ -26,7 +26,6 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.ImageButton
-import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
@@ -36,6 +35,7 @@ import com.autoclicker.arknights.data.ClickPoint
 import com.autoclicker.arknights.data.ClickScheme
 import com.autoclicker.arknights.data.OperationType
 import com.autoclicker.arknights.data.SettingsManager
+import com.autoclicker.arknights.ui.DraggableFrameLayout
 import com.autoclicker.arknights.ui.MainActivity
 import com.autoclicker.arknights.ui.RecordingOverlayView
 import com.autoclicker.arknights.util.ClickUtils
@@ -259,26 +259,18 @@ class FloatingWindowService : Service() {
             y = 200
         }
         
-        // 设置触摸监听，实现拖拽功能
-        floatingView.setOnTouchListener { _, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    lastX = event.rawX
-                    lastY = event.rawY
-                    true
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    val dx = event.rawX - lastX
-                    val dy = event.rawY - lastY
-                    layoutParams.x += dx.toInt()
-                    layoutParams.y += dy.toInt()
-                    windowManager.updateViewLayout(floatingView, layoutParams)
-                    lastX = event.rawX
-                    lastY = event.rawY
-                    true
-                }
-                else -> false
-            }
+        // 使用DraggableFrameLayout的拖动功能
+        val draggableContainer = floatingView.findViewById<DraggableFrameLayout>(R.id.draggableContainer)
+        draggableContainer.onDragStart = {
+            // 拖动开始，不需要特殊处理
+        }
+        draggableContainer.onDrag = { dx, dy ->
+            layoutParams.x += dx.toInt()
+            layoutParams.y += dy.toInt()
+            windowManager.updateViewLayout(floatingView, layoutParams)
+        }
+        draggableContainer.onDragEnd = {
+            // 拖动结束
         }
         
         // 绑定按钮
@@ -343,31 +335,25 @@ class FloatingWindowService : Service() {
             y = 300
         }
         
-        // 设置触摸监听，实现拖拽功能
-        miniFloatView.setOnTouchListener { _, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    lastX = event.rawX
-                    lastY = event.rawY
-                    true
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    val dx = event.rawX - lastX
-                    val dy = event.rawY - lastY
-                    miniLayoutParams?.x = (miniLayoutParams?.x ?: 0) + dx.toInt()
-                    miniLayoutParams?.y = (miniLayoutParams?.y ?: 0) + dy.toInt()
-                    windowManager.updateViewLayout(miniFloatView, miniLayoutParams)
-                    lastX = event.rawX
-                    lastY = event.rawY
-                    true
-                }
-                else -> false
-            }
+        // 使用DraggableFrameLayout的拖动功能
+        val draggableContainer = miniFloatView.findViewById<DraggableFrameLayout>(R.id.draggableContainer)
+        draggableContainer.onDragStart = {
+            // 拖动开始
+        }
+        draggableContainer.onDrag = { dx, dy ->
+            miniLayoutParams?.x = (miniLayoutParams?.x ?: 0) + dx.toInt()
+            miniLayoutParams?.y = (miniLayoutParams?.y ?: 0) + dy.toInt()
+            miniLayoutParams?.let { windowManager.updateViewLayout(miniFloatView, it) }
+        }
+        draggableContainer.onDragEnd = {
+            // 拖动结束
         }
         
-        // 点击恢复
+        // 点击恢复（只有不拖动时才触发）
         miniFloatView.setOnClickListener {
-            restoreWindow()
+            if (!draggableContainer.isDragging()) {
+                restoreWindow()
+            }
         }
     }
     
@@ -512,9 +498,6 @@ class FloatingWindowService : Service() {
         timePicker.setTitle("设置定时启动")
         timePicker.show()
     }
-    
-    private var lastX = 0f
-    private var lastY = 0f
     
     /**
      * 切换录制状态
