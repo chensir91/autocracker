@@ -36,8 +36,31 @@ jobs:
     - name: Build Debug APK
       run: ./gradlew assembleDebug
 
-    - name: Upload APK
+    - name: Rename APK with short SHA
+      run: cp app/build/outputs/apk/debug/*.apk autocracker-debug-${{ github.sha }}.apk
+
+    - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: autocracker-debug
-        path: app/build/outputs/apk/debug/*.apk
+        name: autocracker-debug-${{ github.sha }}
+        path: autocracker-debug-${{ github.sha }}.apk
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: build-${{ github.run_number }}
+        release_name: Debug Build ${{ github.run_number }}
+        body: |
+          ## 自动构建 Release
+          
+          - **Build Number**: ${{ github.run_number }}
+          - **Commit SHA**: ${{ github.sha }}
+          - **构建时间**: ${{ github.event.head_commit.timestamp }}
+          
+          ---
+          自动构建并发布的 Debug APK
+        files: autocracker-debug-${{ github.sha }}.apk
+        draft: false
+        prerelease: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
