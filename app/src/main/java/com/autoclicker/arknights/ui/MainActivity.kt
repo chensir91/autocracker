@@ -332,20 +332,26 @@ class MainActivity : AppCompatActivity() {
         val presetSchemes = PresetSchemes.getAllPresets()
         val mySchemes = settingsManager.getAllSchemes()
         
+        // 创建对话框
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setNegativeButton(getString(R.string.cancel), null)
+            .create()
+        
         // 预设方案适配器
         val presetAdapter = PresetSchemeAdapter(presetSchemes) { scheme ->
             floatingService?.loadScheme(scheme)
             Toast.makeText(this@MainActivity, 
                 "已加载预设方案: ${scheme.name}\n共${scheme.points.size}个步骤", 
                 Toast.LENGTH_SHORT).show()
-            dialog?.dismiss()
+            dialog.dismiss()
         }
         
         // 我的方案适配器
         val myAdapter = SchemeAdapter(mySchemes) { scheme ->
             floatingService?.loadScheme(scheme)
             Toast.makeText(this@MainActivity, getString(R.string.scheme_load_success), Toast.LENGTH_SHORT).show()
-            dialog?.dismiss()
+            dialog.dismiss()
         }
         
         // 设置适配器
@@ -388,10 +394,7 @@ class MainActivity : AppCompatActivity() {
             override fun onTabReselected(tab: TabLayout.Tab?) {}
         })
         
-        val dialog = AlertDialog.Builder(this)
-            .setView(dialogView)
-            .setNegativeButton(getString(R.string.cancel), null)
-            .show()
+        dialog.show()
     }
     
     /**
