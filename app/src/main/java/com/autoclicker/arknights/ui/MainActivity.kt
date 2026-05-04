@@ -23,11 +23,13 @@ import androidx.recyclerview.widget.RecyclerView
 import com.autoclicker.arknights.R
 import com.autoclicker.arknights.data.ClickPoint
 import com.autoclicker.arknights.data.ClickScheme
+import com.autoclicker.arknights.data.PresetSchemes
 import com.autoclicker.arknights.data.SettingsManager
 import com.autoclicker.arknights.databinding.ActivityMainBinding
 import com.autoclicker.arknights.service.AutoClickAccessibilityService
 import com.autoclicker.arknights.service.FloatingWindowService
 import com.autoclicker.arknights.util.PermissionUtils
+import com.google.android.material.tabs.TabLayout
 
 /**
  * 主Activity
@@ -316,32 +318,116 @@ class MainActivity : AppCompatActivity() {
     }
     
     /**
-     * 显示加载方案对话框
+     * 显示加载方案对话框（支持预设方案和我的方案）
      */
     private fun showLoadDialog() {
-        val schemes = settingsManager.getAllSchemes()
-        
         val dialogView = layoutInflater.inflate(R.layout.dialog_load_scheme, null)
+        val tabLayout = dialogView.findViewById<TabLayout>(R.id.tabLayout)
+        val rvPresets = dialogView.findViewById<RecyclerView>(R.id.rvPresetSchemes)
         val rvSchemes = dialogView.findViewById<RecyclerView>(R.id.rvSchemes)
         val tvEmptyHint = dialogView.findViewById<android.widget.TextView>(R.id.tvEmptyHint)
+        val tvPresetHint = dialogView.findViewById<android.widget.TextView>(R.id.tvPresetHint)
         
-        if (schemes.isEmpty()) {
-            tvEmptyHint.visibility = View.VISIBLE
-            rvSchemes.visibility = View.GONE
-        } else {
-            tvEmptyHint.visibility = View.GONE
-            rvSchemes.visibility = View.VISIBLE
-            rvSchemes.layoutManager = LinearLayoutManager(this)
-            rvSchemes.adapter = SchemeAdapter(schemes) { scheme ->
-                floatingService?.loadScheme(scheme)
-                Toast.makeText(this@MainActivity, getString(R.string.scheme_load_success), Toast.LENGTH_SHORT).show()
-            }
+        // 获取预设方案和我的方案
+        val presetSchemes = PresetSchemes.getAllPresets()
+        val mySchemes = settingsManager.getAllSchemes()
+        
+        // 预设方案适配器
+        val presetAdapter = PresetSchemeAdapter(presetSchemes) { scheme ->
+            floatingService?.loadScheme(scheme)
+            Toast.makeText(this@MainActivity, 
+                "已加载预设方案: ${scheme.name}\n共${scheme.points.size}个步骤", 
+                Toast.LENGTH_SHORT).show()
+            dialog?.dismiss()
         }
         
-        AlertDialog.Builder(this)
+        // 我的方案适配器
+        val myAdapter = SchemeAdapter(mySchemes) { scheme ->
+            floatingService?.loadScheme(scheme)
+            Toast.makeText(this@MainActivity, getString(R.string.scheme_load_success), Toast.LENGTH_SHORT).show()
+            dialog?.dismiss()
+        }
+        
+        // 设置适配器
+        rvPresets.layoutManager = LinearLayoutManager(this)
+        rvPresets.adapter = presetAdapter
+        rvSchemes.layoutManager = LinearLayoutManager(this)
+        rvSchemes.adapter = myAdapter
+        
+        // 默认显示预设方案
+        rvPresets.visibility = View.VISIBLE
+        rvSchemes.visibility = View.GONE
+        tvPresetHint.visibility = View.VISIBLE
+        
+        // Tab切换监听
+        tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: TabLayout.Tab?) {
+                when (tab?.position) {
+                    0 -> {
+                        // 预设方案
+                        rvPresets.visibility = View.VISIBLE
+                        rvSchemes.visibility = View.GONE
+                        tvPresetHint.visibility = View.VISIBLE
+                        tvEmptyHint.visibility = View.GONE
+                    }
+                    1 -> {
+                        // 我的方案
+                        rvPresets.visibility = View.GONE
+                        rvSchemes.visibility = View.VISIBLE
+                        tvPresetHint.visibility = View.GONE
+                        if (mySchemes.isEmpty()) {
+                            tvEmptyHint.visibility = View.VISIBLE
+                        } else {
+                            tvEmptyHint.visibility = View.GONE
+                        }
+                    }
+                }
+            }
+            
+            override fun onTabUnselected(tab: TabLayout.Tab?) {}
+            override fun onTabReselected(tab: TabLayout.Tab?) {}
+        })
+        
+        val dialog = AlertDialog.Builder(this)
             .setView(dialogView)
             .setNegativeButton(getString(R.string.cancel), null)
             .show()
+    }
+    
+    /**
+     * 预设方案列表适配器
+     */
+    inner class PresetSchemeAdapter(
+        private val schemes: List<ClickScheme>,
+        private val onItemClick: (ClickScheme) -> Unit
+    ) : RecyclerView.Adapter<PresetSchemeAdapter.ViewHolder>() {
+        
+        inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+            val tvName: android.widget.TextView = itemView.findViewById(R.id.tvSchemeName)
+            val tvInfo: android.widget.TextView = itemView.findViewById(R.id.tvSchemeInfo)
+            val btnDelete: android.widget.ImageButton = itemView.findViewById(R.id.btnDelete)
+        }
+        
+        override fun onCreateViewHolder(parent: android.view.ViewGroup, viewType: Int): ViewHolder {
+            val view = LayoutInflater.from(parent.context)
+                .inflate(R.layout.item_scheme, parent, false)
+            return ViewHolder(view)
+        }
+        
+        override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+            val scheme = schemes[position]
+            holder.tvName.text = scheme.name
+            holder.tvInfo.text = "${scheme.points.size}个步骤"
+            
+            // 预设方案不可删除，隐藏删除按钮
+            holder.btnDelete.visibility = View.GONE
+            
+            holder.itemView.setOnClickListener {
+                onItemClick(scheme)
+            }
+        }
+        
+        override fun getItemCount() = schemes.size
     }
     
     /**
