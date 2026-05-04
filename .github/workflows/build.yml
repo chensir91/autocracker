@@ -1,14 +1,11 @@
 name: Build APK
-
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
-
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v4
     
@@ -45,8 +42,14 @@ jobs:
         name: autocracker-debug-${{ github.sha }}
         path: autocracker-debug-${{ github.sha }}.apk
 
+    - name: Create Git Tag
+      run: |
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+        git tag -a build-${{ github.run_number }} -m "Build ${{ github.run_number }}: ${{ github.sha }}"
+
     - name: Create Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: build-${{ github.run_number }}
         release_name: Debug Build ${{ github.run_number }}
