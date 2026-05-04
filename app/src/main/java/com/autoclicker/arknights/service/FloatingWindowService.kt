@@ -1132,7 +1132,7 @@ class ClickFeedbackView(context: Context) : View(context) {
                 val wm = context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
                 wm?.updateViewLayout(this, it)
             } catch (e: Exception) {
-                Log.e(TAG, "Error updating click feedback layout", e)
+                Log.e("ClickFeedbackView", "Error updating click feedback layout", e)
             }
         }
         
@@ -1149,7 +1149,7 @@ class ClickFeedbackView(context: Context) : View(context) {
             val wm = context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
             wm?.removeView(this)
         } catch (e: Exception) {
-            Log.e(TAG, "Error hiding click feedback", e)
+            Log.e("ClickFeedbackView", "Error hiding click feedback", e)
         }
     }
 }
