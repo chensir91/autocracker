@@ -1119,8 +1119,9 @@ class ClickFeedbackView(context: Context) : View(context) {
         }
         
         // 3秒后自动隐藏
-        hideRunnable = Runnable { hide() }
-        handler.postDelayed(hideRunnable, 300)
+        val runnable = Runnable { hide() }
+        hideRunnable = runnable
+        handler.postDelayed(runnable, 300)
         
         invalidate()
     }

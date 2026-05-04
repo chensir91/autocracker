@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.provider.Settings
@@ -515,12 +516,15 @@ class MainActivity : AppCompatActivity() {
         }
         
         // 我的方案适配器
-        val myAdapter = SchemeAdapter(mySchemes) { scheme ->
-            floatingService?.loadScheme(scheme)
-            refreshPointList()
-            Toast.makeText(this@MainActivity, getString(R.string.scheme_load_success), Toast.LENGTH_SHORT).show()
-            dialog.dismiss()
-        }
+        val myAdapter = SchemeAdapter(
+            schemes = mySchemes,
+            onItemClick = { scheme ->
+                floatingService?.loadScheme(scheme)
+                refreshPointList()
+                Toast.makeText(this@MainActivity, getString(R.string.scheme_load_success), Toast.LENGTH_SHORT).show()
+                dialog.dismiss()
+            }
+        )
         
         // 设置适配器
         rvPresets.layoutManager = LinearLayoutManager(this)
