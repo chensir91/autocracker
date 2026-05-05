@@ -33,11 +33,13 @@ data class ClickPoint(
  * 录制方案，包含多个点位和配置信息
  * @param name 方案名称
  * @param points 点击点位列表
+ * @param description 使用提示/前提条件
  * @param createdAt 创建时间
  */
 data class ClickScheme(
     val name: String,
     val points: List<ClickPoint>,
+    val description: String = "",  // 使用提示/前提条件
     val createdAt: Long = System.currentTimeMillis()
 ) : Serializable
 
