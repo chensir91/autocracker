@@ -120,8 +120,16 @@ class FloatingWindowService : Service() {
         } catch (e: Exception) {
             Log.e(TAG, "Error creating notification channels", e)
         }
-        createFloatingWindow()
-        createMiniFloatingWindow()
+        try {
+            createFloatingWindow()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating floating window", e)
+        }
+        try {
+            createMiniFloatingWindow()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating mini floating window", e)
+        }
         checkScheduledStart()
         Log.d(TAG, "FloatingWindowService created")
     }
@@ -133,7 +141,6 @@ class FloatingWindowService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // 确保通知渠道已创建
         if (!notificationChannelCreated) {
-            Log.w(TAG, "Notification channels not created yet, creating now...")
             try {
                 createNotificationChannel()
                 createCompletionNotificationChannel()
@@ -143,30 +150,24 @@ class FloatingWindowService : Service() {
             }
         }
         
-        // Android 13+ 检查通知权限
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val notificationManager = getSystemService(NotificationManager::class.java)
-            if (notificationManager != null && !notificationManager.areNotificationsEnabled()) {
-                Log.w(TAG, "Notifications disabled, cannot start foreground service properly")
-                // 即使权限未授予，仍然尝试启动（前台服务可以没有通知）
-                // 但记录警告日志
-            }
-        }
-        
+        // 尝试启动前台服务
         try {
-            val notification = createNotification()
-            if (notification != null) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-                } else {
-                    startForeground(NOTIFICATION_ID, notification)
-                }
-                Log.d(TAG, "Foreground service started with notification")
+            val notification = createNotification() ?: createFallbackNotification()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
             } else {
-                Log.e(TAG, "Failed to create notification")
+                startForeground(NOTIFICATION_ID, notification)
             }
+            Log.d(TAG, "Foreground service started with notification")
         } catch (e: Exception) {
-            Log.e(TAG, "Error starting foreground service", e)
+            Log.e(TAG, "Error starting foreground service, trying without foregroundServiceType", e)
+            // 降级：不使用 foregroundServiceType
+            try {
+                val notification = createNotification() ?: createFallbackNotification()
+                startForeground(NOTIFICATION_ID, notification)
+            } catch (e2: Exception) {
+                Log.e(TAG, "Failed to start foreground service entirely", e2)
+            }
         }
         
         return START_STICKY
@@ -246,6 +247,48 @@ class FloatingWindowService : Service() {
             Log.e(TAG, "Error creating notification", e)
             return null
         }
+    }
+    
+    /**
+     * 创建最简后备通知，确保 startForeground 一定能拿到通知
+     */
+    private fun createFallbackNotification(): Notification {
+        // 确保渠道存在
+        if (!notificationChannelCreated) {
+            try {
+                createNotificationChannel()
+                notificationChannelCreated = true
+            } catch (e: Exception) {
+                // 创建一个最简渠道
+                try {
+                    val channel = NotificationChannel(
+                        CHANNEL_ID,
+                        "AutoClicker",
+                        NotificationManager.IMPORTANCE_MIN
+                    )
+                    val nm = getSystemService(NotificationManager::class.java)
+                    nm?.createNotificationChannel(channel)
+                    notificationChannelCreated = true
+                } catch (e2: Exception) {
+                    Log.e(TAG, "Even fallback channel creation failed", e2)
+                }
+            }
+        }
+        
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("AutoClicker")
+            .setContentText("Running")
+            .setSmallIcon(android.R.drawable.ic_menu_edit)
+            .setContentIntent(pendingIntent)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setOngoing(true)
+            .build()
     }
     
     /**
@@ -1141,14 +1184,11 @@ class FloatingWindowService : Service() {
         
         /**
          * 启动服务
+         * 使用 startService() 替代 startForegroundService() 避免 Android 8+ 的 5 秒限制
          */
         fun start(context: Context) {
             val intent = Intent(context, FloatingWindowService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
-            }
+            context.startService(intent)
         }
     }
 }

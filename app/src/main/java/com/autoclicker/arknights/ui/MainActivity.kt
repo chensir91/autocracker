@@ -26,6 +26,10 @@ import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.autoclicker.arknights.R
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import com.autoclicker.arknights.data.ClickPoint
 import com.autoclicker.arknights.data.ClickScheme
 import com.autoclicker.arknights.data.OperationType
@@ -65,6 +69,7 @@ class MainActivity : AppCompatActivity() {
         override fun onServiceDisconnected(name: ComponentName?) {
             floatingService = null
             isServiceBound = false
+            isStartingService = false
         }
     }
     
@@ -78,19 +83,36 @@ class MainActivity : AppCompatActivity() {
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (granted) {
-            // 权限授予后，等待一小段时间确保系统完成权限状态更新
-            binding.root.postDelayed({
-                try {
-                    startFloatingService()
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error starting service after permission granted", e)
-                }
-            }, 100)
-        }
+        // 权限结果由 onResume 中的 checkAndRequestPermissions 处理
+        // 这里不需要额外操作，避免与 onResume 的调用重复
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
+        // 安装全局异常处理器，保存崩溃日志到文件
+        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            try {
+                val logFile = File(filesDir, "crash_log.txt")
+                logFile.writeText("Time: ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())}\n")
+                logFile.appendText("Thread: ${thread.name}\n")
+                logFile.appendText("Exception: ${throwable.javaClass.name}\n")
+                logFile.appendText("Message: ${throwable.message}\n")
+                logFile.appendText("Stack trace:\n")
+                throwable.stackTrace.take(20).forEach { frame ->
+                    logFile.appendText("  at $frame\n")
+                }
+                throwable.cause?.let { cause ->
+                    logFile.appendText("Caused by: ${cause.javaClass.name}: ${cause.message}\n")
+                    cause.stackTrace.take(10).forEach { frame ->
+                        logFile.appendText("  at $frame\n")
+                    }
+                }
+            } catch (e: Exception) {
+                // 无法写入日志，忽略
+            }
+            defaultHandler?.uncaughtException(thread, throwable)
+        }
+        
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -108,6 +130,21 @@ class MainActivity : AppCompatActivity() {
     
     override fun onResume() {
         super.onResume()
+        
+        // 检查是否有崩溃日志
+        val crashLogFile = File(filesDir, "crash_log.txt")
+        if (crashLogFile.exists()) {
+            try {
+                val crashLog = crashLogFile.readText()
+                Log.e(TAG, "Previous crash log found:\n$crashLog")
+                Toast.makeText(this, "检测到上次崩溃日志，已记录", Toast.LENGTH_LONG).show()
+                // 重命名避免重复提示
+                crashLogFile.renameTo(File(filesDir, "crash_log_read.txt"))
+            } catch (e: Exception) {
+                // 忽略
+            }
+        }
+        
         checkAndRequestPermissions()
         updatePermissionHint()
         // 刷新设置
@@ -355,12 +392,21 @@ class MainActivity : AppCompatActivity() {
         if (!PermissionUtils.canDrawOverlays(this)) {
             return
         }
+        if (isStartingService || isServiceBound) {
+            return  // 防止重复启动
+        }
+        isStartingService = true
         
-        FloatingWindowService.start(this)
-        
-        // 绑定服务
-        Intent(this, FloatingWindowService::class.java).also { intent ->
-            bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+        try {
+            FloatingWindowService.start(this)
+            
+            // 绑定服务
+            Intent(this, FloatingWindowService::class.java).also { intent ->
+                bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error starting floating service", e)
+            isStartingService = false
         }
     }
     
