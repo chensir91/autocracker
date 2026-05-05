@@ -43,6 +43,7 @@ import com.google.android.material.tabs.TabLayout
  * 新增点位列表显示和编辑功能
  */
 class MainActivity : AppCompatActivity() {
+    companion object { private const val TAG = "MainActivity" }
     
     private lateinit var binding: ActivityMainBinding
     private lateinit var settingsManager: SettingsManager
