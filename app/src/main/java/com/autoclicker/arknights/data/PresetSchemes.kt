@@ -78,7 +78,6 @@ object PresetSchemes {
     val baseCollect: ClickScheme
         get() = ClickScheme(
             name = "基建收菜",
-            description = "前提：从主界面开始\n流程：进入基建→一键办事→收贸易站订单→收制造站产物→无人机加速→返回主界面",
             points = listOf(
                 wait(1.5f, "等待主界面加载"),
                 click(640f, 680f, 1, "点击「基建」按钮"),
@@ -104,7 +103,8 @@ object PresetSchemes {
                 click(50f, 50f, 11, "返回主界面"),
                 wait(1.5f, "等待主界面"),
                 click(50f, 50f, 12, "确保退出基建")
-            )
+            ),
+            description = "前提：从主界面开始\n流程：进入基建→一键办事→收贸易站订单→收制造站产物→无人机加速→返回主界面"
         )
     
     /**
@@ -128,7 +128,6 @@ object PresetSchemes {
     val collectRewards: ClickScheme
         get() = ClickScheme(
             name = "领取邮件+任务",
-            description = "前提：从主界面开始\n流程：打开邮件→一键领取→关闭邮件→打开任务→领取全部奖励→返回主界面",
             points = listOf(
                 wait(1.5f, "等待主界面加载"),
                 click(1200f, 50f, 1, "点击邮件图标"),
@@ -146,7 +145,8 @@ object PresetSchemes {
                 click(640f, 400f, 7, "点击确定（确认对话框）"),
                 wait(0.5f, "等待对话框关闭"),
                 click(50f, 50f, 8, "返回主界面")
-            )
+            ),
+            description = "前提：从主界面开始\n流程：打开邮件→一键领取→关闭邮件→打开任务→领取全部奖励→返回主界面"
         )
     
     /**
@@ -168,7 +168,6 @@ object PresetSchemes {
     val creditStore: ClickScheme
         get() = ClickScheme(
             name = "信用商店",
-            description = "前提：从主界面开始\n流程：进入商店→信用交易所→购买打折物品（3个）→返回主界面",
             points = listOf(
                 wait(1.5f, "等待主界面加载"),
                 click(960f, 680f, 1, "点击商店入口"),
@@ -190,7 +189,8 @@ object PresetSchemes {
                 click(50f, 50f, 9, "返回"),
                 wait(0.5f, "等待界面返回"),
                 click(50f, 50f, 10, "返回主界面")
-            )
+            ),
+            description = "前提：从主界面开始\n流程：进入商店→信用交易所→购买打折物品（3个）→返回主界面"
         )
     
     /**
@@ -219,7 +219,6 @@ object PresetSchemes {
     val farm16: ClickScheme
         get() = ClickScheme(
             name = "刷1-6",
-            description = "前提：从主界面开始，确保有足够理智\n流程：作战→主题曲→物资筹备→选择LS-6→代理指挥→等待战斗结束（约50秒）→领取奖励\n⚠️ 每次循环消耗30理智，请确保理智充足",
             points = listOf(
                 wait(1.5f, "等待主界面加载"),
                 click(320f, 680f, 1, "点击「作战」按钮"),
@@ -239,7 +238,8 @@ object PresetSchemes {
                 click(640f, 400f, 8, "领取结算奖励"),
                 wait(1.0f, "等待结算动画"),
                 click(640f, 400f, 9, "点击继续/确定")
-            )
+            ),
+            description = "前提：从主界面开始，确保有足够理智\n流程：作战→主题曲→物资筹备→选择LS-6→代理指挥→等待战斗结束（约50秒）→领取奖励\n⚠️ 每次循环消耗30理智，请确保理智充足"
         )
     
     /**
@@ -265,7 +265,6 @@ object PresetSchemes {
     val friendClue: ClickScheme
         get() = ClickScheme(
             name = "好友线索交流",
-            description = "前提：从主界面开始\n流程：打开好友→线索交流→开始交流→领取奖励→返回主界面",
             points = listOf(
                 wait(1.5f, "等待主界面加载"),
                 click(1180f, 680f, 1, "点击「好友」按钮"),
@@ -282,7 +281,8 @@ object PresetSchemes {
                 wait(1.0f, "等待发送完成"),
                 click(50f, 50f, 7, "返回主界面"),
                 wait(1.5f, "等待主界面")
-            )
+            ),
+            description = "前提：从主界面开始\n流程：打开好友→线索交流→开始交流→领取奖励→返回主界面"
         )
     
     /**
@@ -295,7 +295,6 @@ object PresetSchemes {
     val dailyComplete: ClickScheme
         get() = ClickScheme(
             name = "完整日常",
-            description = "前提：从主界面开始\n流程：基建收菜→领取邮件→领取任务奖励→信用商店购物\n⚠️ 方案较长，请确保游戏不会中途超时断线",
             points = listOf(
                 // ========== 基建收菜 ==========
                 wait(1.5f, "等待主界面加载"),
@@ -335,7 +334,8 @@ object PresetSchemes {
                 click(50f, 50f, 16, "返回"),
                 wait(0.5f, "等待界面返回"),
                 click(50f, 50f, 17, "返回主界面")
-            )
+            ),
+            description = "前提：从主界面开始\n流程：基建收菜→领取邮件→领取任务奖励→信用商店购物\n⚠️ 方案较长，请确保游戏不会中途超时断线"
         )
     
     /**
