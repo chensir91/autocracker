@@ -17,10 +17,11 @@ android {
 
     signingConfigs {
         release {
-            storeFile file("../../.github/keystore/release.keystore")
-            storePassword "autocracker123"
-            keyAlias "release"
-            keyPassword "autocracker123"
+            // 使用 rootProject 来获取项目根目录
+            storeFile = rootProject.file(".github/keystore/release.keystore")
+            storePassword = "autocracker123"
+            keyAlias = "release"
+            keyPassword = "autocracker123"
         }
     }
 
