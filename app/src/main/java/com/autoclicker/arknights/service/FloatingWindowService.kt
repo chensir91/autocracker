@@ -29,6 +29,7 @@ import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
+import android.content.pm.ServiceInfo
 import com.autoclicker.arknights.R
 import com.autoclicker.arknights.data.AppSettings
 import com.autoclicker.arknights.data.ClickPoint
