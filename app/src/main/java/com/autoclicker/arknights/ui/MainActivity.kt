@@ -76,7 +76,14 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
-            startFloatingService()
+            // 权限授予后，等待一小段时间确保系统完成权限状态更新
+            binding.root.postDelayed({
+                try {
+                    startFloatingService()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error starting service after permission granted", e)
+                }
+            }, 100)
         }
     }
     
@@ -286,7 +293,11 @@ class MainActivity : AppCompatActivity() {
                     Manifest.permission.POST_NOTIFICATIONS
                 ) != PackageManager.PERMISSION_GRANTED
             ) {
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                try {
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error launching permission request", e)
+                }
                 return
             }
         }
@@ -295,7 +306,11 @@ class MainActivity : AppCompatActivity() {
         binding.permissionHint.visibility = View.GONE
         
         // 启动服务
-        startFloatingService()
+        try {
+            startFloatingService()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error starting floating service", e)
+        }
     }
     
     /**

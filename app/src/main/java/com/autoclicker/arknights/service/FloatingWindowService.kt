@@ -81,6 +81,9 @@ class FloatingWindowService : Service() {
     
     // 微停顿相关
     private var clickCountSinceLastPause = 0
+    
+    // 通知渠道是否已创建的标志
+    private var notificationChannelCreated = false
     private var nextPauseAt = 0
     
     // 当前进度
@@ -108,8 +111,14 @@ class FloatingWindowService : Service() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         settingsManager = SettingsManager.getInstance(this)
         settings = settingsManager.getSettings()
-        createNotificationChannel()
-        createCompletionNotificationChannel()
+        try {
+            createNotificationChannel()
+            createCompletionNotificationChannel()
+            notificationChannelCreated = true
+            Log.d(TAG, "Notification channels created successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating notification channels", e)
+        }
         createFloatingWindow()
         createMiniFloatingWindow()
         checkScheduledStart()
@@ -121,7 +130,40 @@ class FloatingWindowService : Service() {
     }
     
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(NOTIFICATION_ID, createNotification())
+        // 确保通知渠道已创建
+        if (!notificationChannelCreated) {
+            Log.w(TAG, "Notification channels not created yet, creating now...")
+            try {
+                createNotificationChannel()
+                createCompletionNotificationChannel()
+                notificationChannelCreated = true
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to create notification channels in onStartCommand", e)
+            }
+        }
+        
+        // Android 13+ 检查通知权限
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val notificationManager = getSystemService(NotificationManager::class.java)
+            if (notificationManager != null && !notificationManager.areNotificationsEnabled()) {
+                Log.w(TAG, "Notifications disabled, cannot start foreground service properly")
+                // 即使权限未授予，仍然尝试启动（前台服务可以没有通知）
+                // 但记录警告日志
+            }
+        }
+        
+        try {
+            val notification = createNotification()
+            if (notification != null) {
+                startForeground(NOTIFICATION_ID, notification)
+                Log.d(TAG, "Foreground service started with notification")
+            } else {
+                Log.e(TAG, "Failed to create notification")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error starting foreground service", e)
+        }
+        
         return START_STICKY
     }
     
@@ -147,43 +189,58 @@ class FloatingWindowService : Service() {
      */
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                getString(R.string.notification_channel_name),
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = getString(R.string.notification_channel_desc)
+            try {
+                val channel = NotificationChannel(
+                    CHANNEL_ID,
+                    getString(R.string.notification_channel_name),
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply {
+                    description = getString(R.string.notification_channel_desc)
+                }
+                val notificationManager = getSystemService(NotificationManager::class.java)
+                if (notificationManager != null) {
+                    notificationManager.createNotificationChannel(channel)
+                    Log.d(TAG, "Notification channel created: $CHANNEL_ID")
+                } else {
+                    Log.e(TAG, "NotificationManager is null")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error creating notification channel", e)
             }
-            val notificationManager = getSystemService(NotificationManager::class.java)
-            notificationManager.createNotificationChannel(channel)
         }
     }
     
     /**
      * 创建前台通知
      */
-    private fun createNotification(): Notification {
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
-            Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE
-        )
-        
-        val statusText = when {
-            isRunning -> getString(R.string.status_running)
-            isPaused -> getString(R.string.status_paused)
-            isRecording -> getString(R.string.status_recording)
-            else -> getString(R.string.notification_content)
+    private fun createNotification(): Notification? {
+        try {
+            val pendingIntent = PendingIntent.getActivity(
+                this,
+                0,
+                Intent(this, MainActivity::class.java),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+            
+            val statusText = when {
+                isRunning -> getString(R.string.status_running)
+                isPaused -> getString(R.string.status_paused)
+                isRecording -> getString(R.string.status_recording)
+                else -> getString(R.string.notification_content)
+            }
+            
+            return NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle(getString(R.string.notification_title))
+                .setContentText(statusText)
+                .setSmallIcon(android.R.drawable.ic_menu_edit)
+                .setContentIntent(pendingIntent)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setOngoing(true)
+                .build()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating notification", e)
+            return null
         }
-        
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(getString(R.string.notification_title))
-            .setContentText(statusText)
-            .setSmallIcon(android.R.drawable.ic_menu_edit)
-            .setContentIntent(pendingIntent)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .build()
     }
     
     /**
@@ -221,15 +278,22 @@ class FloatingWindowService : Service() {
      */
     private fun createCompletionNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                COMPLETION_CHANNEL_ID,
-                "任务完成通知",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "连点器任务完成时的通知"
+            try {
+                val channel = NotificationChannel(
+                    COMPLETION_CHANNEL_ID,
+                    "任务完成通知",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "连点器任务完成时的通知"
+                }
+                val notificationManager = getSystemService(NotificationManager::class.java)
+                if (notificationManager != null) {
+                    notificationManager.createNotificationChannel(channel)
+                    Log.d(TAG, "Completion notification channel created: $COMPLETION_CHANNEL_ID")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error creating completion notification channel", e)
             }
-            val notificationManager = getSystemService(NotificationManager::class.java)
-            notificationManager.createNotificationChannel(channel)
         }
     }
     
