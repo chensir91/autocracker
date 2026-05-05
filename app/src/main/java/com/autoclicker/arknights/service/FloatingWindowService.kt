@@ -39,6 +39,7 @@ import com.autoclicker.arknights.data.SettingsManager
 import com.autoclicker.arknights.ui.DraggableFrameLayout
 import com.autoclicker.arknights.ui.MainActivity
 import com.autoclicker.arknights.ui.RecordingOverlayView
+import com.autoclicker.arknights.ui.ServiceDialogActivity
 import com.autoclicker.arknights.util.ClickUtils
 import kotlin.random.Random
 
@@ -167,6 +168,25 @@ class FloatingWindowService : Service() {
                 startForeground(NOTIFICATION_ID, notification)
             } catch (e2: Exception) {
                 Log.e(TAG, "Failed to start foreground service entirely", e2)
+            }
+        }
+        
+        // 处理来自 ServiceDialogActivity 的操作
+        when (intent?.action) {
+            ServiceDialogActivity.ACTION_SET_SCHEDULED -> {
+                val hourOfDay = intent.getIntExtra("hourOfDay", 0)
+                val minute = intent.getIntExtra("minute", 0)
+                setScheduledStart(hourOfDay, minute)
+            }
+            ServiceDialogActivity.ACTION_ADD_POINT -> {
+                val typeName = intent.getStringExtra("type") ?: OperationType.CLICK.name
+                val type = OperationType.valueOf(typeName)
+                val x = intent.getFloatExtra("x", 0f)
+                val y = intent.getFloatExtra("y", 0f)
+                val duration = intent.getLongExtra("duration", 0L)
+                addRecordedPoint(x, y, type, duration)
+                // 更新录制覆盖层的显示
+                recordingOverlay?.setPoints(recordedPoints)
             }
         }
         
@@ -594,21 +614,14 @@ class FloatingWindowService : Service() {
     }
     
     /**
-     * 显示定时启动对话框
+     * 显示定时启动对话框 - 通过Activity安全弹出
      */
     private fun showScheduledDialog() {
-        // 使用TimePickerDialog
-        val timePicker = android.app.TimePickerDialog(
-            this,
-            { _, hourOfDay, minute ->
-                setScheduledStart(hourOfDay, minute)
-            },
-            java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY),
-            java.util.Calendar.getInstance().get(java.util.Calendar.MINUTE),
-            true
-        )
-        timePicker.setTitle("设置定时启动")
-        timePicker.show()
+        val intent = Intent(this, ServiceDialogActivity::class.java).apply {
+            putExtra(ServiceDialogActivity.EXTRA_DIALOG_TYPE, ServiceDialogActivity.TYPE_SCHEDULED)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        startActivity(intent)
     }
     
     /**

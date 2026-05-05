@@ -3,6 +3,7 @@ package com.autoclicker.arknights.ui
 import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.content.Context
+import android.content.Intent
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -370,18 +371,7 @@ class RecordingOverlayView(context: Context) : View(context) {
                     }
                 }
                 
-                // 检查是否点击在录制点位的显示区域（排除按钮区域）
-                // 如果点击在中间区域，返回false让触摸穿透到游戏
-                val topSafeArea = margin + buttonHeight + 100f  // 操作类型选择器下方
-                val bottomSafeArea = height - 200f  // 底部提示区域上方
-                
-                if (y > topSafeArea && y < bottomSafeArea && 
-                    x > undoButtonRight + 20f) {
-                    // 点击在中间安全区域，返回false让触摸穿透到游戏
-                    return false
-                }
-                
-                // 普通点击录制点位（按钮附近区域）
+                // 普通点击录制点位（所有非按钮区域）
                 when (currentOperationType) {
                     OperationType.CLICK -> {
                         val point = ClickPoint(
@@ -450,94 +440,30 @@ class RecordingOverlayView(context: Context) : View(context) {
     }
     
     /**
-     * 显示长按设置对话框
+     * 显示长按设置对话框 - 通过Activity安全弹出
      */
     private fun showLongPressDialog(x: Float, y: Float) {
-        val dialogView = android.view.LayoutInflater.from(context)
-            .inflate(R.layout.dialog_long_press, null)
-        
-        val seekBar = dialogView.findViewById<SeekBar>(R.id.seekLongPressDuration)
-        val tvDuration = dialogView.findViewById<TextView>(R.id.tvLongPressDuration)
-        
-        // 设置初始值（厘秒为单位，显示为毫秒）
-        seekBar.max = 20  // 0-2000ms
-        seekBar.progress = (defaultLongPressDuration / 100).toInt()
-        tvDuration.text = "${seekBar.progress * 100}ms"
-        
-        seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                val duration = (progress + 1) * 100  // 100-2100ms
-                tvDuration.text = "${duration}ms"
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-        
-        AlertDialog.Builder(context)
-            .setTitle("设置长按时长")
-            .setView(dialogView)
-            .setPositiveButton("确定") { _, _ ->
-                val duration = (seekBar.progress + 1) * 100L
-                defaultLongPressDuration = duration
-                val point = ClickPoint(
-                    x = x,
-                    y = y,
-                    order = recordedPoints.size + 1,
-                    type = OperationType.LONG_PRESS,
-                    duration = duration
-                )
-                recordedPoints.add(point)
-                onPointRecorded?.invoke(point)
-                invalidate()
-            }
-            .setNegativeButton("取消", null)
-            .show()
+        val intent = Intent(context, ServiceDialogActivity::class.java).apply {
+            putExtra(ServiceDialogActivity.EXTRA_DIALOG_TYPE, ServiceDialogActivity.TYPE_LONG_PRESS)
+            putExtra(ServiceDialogActivity.EXTRA_POINT_X, x)
+            putExtra(ServiceDialogActivity.EXTRA_POINT_Y, y)
+            putExtra(ServiceDialogActivity.EXTRA_ORDER, recordedPoints.size + 1)
+            putExtra(ServiceDialogActivity.EXTRA_DEFAULT_DURATION, defaultLongPressDuration)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
     }
     
     /**
-     * 显示等待设置对话框
+     * 显示等待设置对话框 - 通过Activity安全弹出
      */
     private fun showWaitDialog() {
-        val dialogView = android.view.LayoutInflater.from(context)
-            .inflate(R.layout.dialog_wait, null)
-        
-        val seekBar = dialogView.findViewById<SeekBar>(R.id.seekWaitDuration)
-        val tvDuration = dialogView.findViewById<TextView>(R.id.tvWaitDuration)
-        
-        // 设置初始值（厘秒为单位，显示为毫秒）
-        seekBar.max = 30  // 0-3000ms
-        seekBar.progress = (defaultWaitDuration / 100).toInt()
-        tvDuration.text = "${seekBar.progress * 100}ms"
-        
-        seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                val duration = (progress + 1) * 100  // 100-3100ms
-                tvDuration.text = "${duration}ms"
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-        
-        AlertDialog.Builder(context)
-            .setTitle("设置等待时长")
-            .setView(dialogView)
-            .setPositiveButton("添加等待") { _, _ ->
-                val duration = (seekBar.progress + 1) * 100L
-                defaultWaitDuration = duration
-                // 添加等待步骤（位置为0,0）
-                val point = ClickPoint(
-                    x = 0f,
-                    y = 0f,
-                    order = recordedPoints.size + 1,
-                    type = OperationType.WAIT,
-                    duration = duration
-                )
-                recordedPoints.add(point)
-                onPointRecorded?.invoke(point)
-                invalidate()
-            }
-            .setNegativeButton("取消", null)
-            .show()
+        val intent = Intent(context, ServiceDialogActivity::class.java).apply {
+            putExtra(ServiceDialogActivity.EXTRA_DIALOG_TYPE, ServiceDialogActivity.TYPE_WAIT)
+            putExtra(ServiceDialogActivity.EXTRA_DEFAULT_DURATION, defaultWaitDuration)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
     }
     
     /**

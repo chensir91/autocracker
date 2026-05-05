@@ -36,6 +36,12 @@
             android:exported="false"
             android:theme="@style/Theme.ArknightsAutoClicker" />
 
+        <!-- 服务对话框Activity - 用于安全弹出对话框 -->
+        <activity
+            android:name=".ui.ServiceDialogActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <!-- 无障碍服务 -->
         <service
             android:name=".service.AutoClickAccessibilityService"
