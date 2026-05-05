@@ -155,7 +155,11 @@ class FloatingWindowService : Service() {
         try {
             val notification = createNotification()
             if (notification != null) {
-                startForeground(NOTIFICATION_ID, notification)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+                } else {
+                    startForeground(NOTIFICATION_ID, notification)
+                }
                 Log.d(TAG, "Foreground service started with notification")
             } else {
                 Log.e(TAG, "Failed to create notification")

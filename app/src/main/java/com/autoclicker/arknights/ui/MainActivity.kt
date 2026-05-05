@@ -51,6 +51,7 @@ class MainActivity : AppCompatActivity() {
     
     private var floatingService: FloatingWindowService? = null
     private var isServiceBound = false
+    private var isStartingService = false
     
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
