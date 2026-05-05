@@ -4,64 +4,104 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:background="@drawable/bg_point_item"
-    android:gravity="center_vertical"
-    android:orientation="horizontal"
+    android:orientation="vertical"
     android:padding="12dp"
     android:layout_marginBottom="8dp">
 
+    <!-- 第一行：名称 + 按钮 -->
     <LinearLayout
-        android:layout_width="0dp"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:orientation="vertical">
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
 
-        <TextView
-            android:id="@+id/tvSchemeName"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:text="方案名称"
-            android:textColor="@color/text_primary"
-            android:textSize="15sp"
-            android:textStyle="bold" />
+            android:layout_weight="1"
+            android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/tvSchemeDesc"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:text="方案描述"
-            android:textColor="@color/text_secondary"
-            android:textSize="12sp" />
+            <TextView
+                android:id="@+id/tvSchemeName"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="方案名称"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp"
+                android:textStyle="bold" />
 
-        <TextView
-            android:id="@+id/tvSchemePoints"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:text="0 个步骤"
-            android:textColor="@color/primary"
-            android:textSize="11sp" />
+            <TextView
+                android:id="@+id/tvSchemeDesc"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="方案描述"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/tvSchemePoints"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="0 个步骤"
+                android:textColor="@color/primary"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/btnToggleDetail"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="@drawable/bg_floating_button"
+            android:contentDescription="展开详情"
+            android:padding="6dp"
+            android:src="@android:drawable/ic_menu_info_details"
+            app:tint="@color/text_secondary" />
+
+        <ImageButton
+            android:id="@+id/btnLoadScheme"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="4dp"
+            android:background="@drawable/bg_floating_button"
+            android:contentDescription="加载"
+            android:padding="8dp"
+            android:src="@android:drawable/ic_menu_add"
+            app:tint="@color/primary" />
+
+        <ImageButton
+            android:id="@+id/btnDeleteScheme"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="4dp"
+            android:background="@drawable/bg_floating_button"
+            android:contentDescription="删除"
+            android:padding="8dp"
+            android:src="@android:drawable/ic_menu_delete"
+            app:tint="@color/status_recording" />
     </LinearLayout>
 
-    <ImageButton
-        android:id="@+id/btnLoadScheme"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:background="@drawable/bg_floating_button"
-        android:contentDescription="加载"
+    <!-- 使用提示 -->
+    <TextView
+        android:id="@+id/tvSchemeHint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:background="#1A4CAF50"
         android:padding="8dp"
-        android:src="@android:drawable/ic_menu_add"
-        app:tint="@color/primary" />
+        android:text="使用提示"
+        android:textColor="#4CAF50"
+        android:textSize="11sp"
+        android:visibility="gone" />
 
-    <ImageButton
-        android:id="@+id/btnDeleteScheme"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:layout_marginStart="4dp"
-        android:background="@drawable/bg_floating_button"
-        android:contentDescription="删除"
-        android:padding="8dp"
-        android:src="@android:drawable/ic_menu_delete"
-        app:tint="@color/status_recording" />
+    <!-- 步骤详情列表 -->
+    <LinearLayout
+        android:id="@+id/layoutSteps"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:orientation="vertical"
+        android:visibility="gone" />
 
 </LinearLayout>

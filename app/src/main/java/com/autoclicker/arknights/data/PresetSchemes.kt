@@ -31,26 +31,28 @@ object PresetSchemes {
     /**
      * 创建等待点位
      */
-    private fun wait(seconds: Float): ClickPoint {
+    private fun wait(seconds: Float, label: String = ""): ClickPoint {
         return ClickPoint(
             x = 0f,
             y = 0f,
             order = 0,
             type = OperationType.WAIT,
-            duration = (seconds * 1000).toLong()
+            duration = (seconds * 1000).toLong(),
+            label = label
         )
     }
     
     /**
      * 创建点击点位
      */
-    private fun click(x: Float, y: Float, order: Int): ClickPoint {
+    private fun click(x: Float, y: Float, order: Int, label: String = ""): ClickPoint {
         return ClickPoint(
             x = scaleX(x),
             y = scaleY(y),
             order = order,
             type = OperationType.CLICK,
-            duration = 0
+            duration = 0,
+            label = label
         )
     }
     
@@ -76,46 +78,32 @@ object PresetSchemes {
     val baseCollect: ClickScheme
         get() = ClickScheme(
             name = "基建收菜",
+            description = "前提：从主界面开始\n流程：进入基建→一键办事→收贸易站订单→收制造站产物→无人机加速→返回主界面",
             points = listOf(
-                // 等待主界面加载
-                wait(1.5f),
-                // 点击基建按钮进入基建界面
-                click(640f, 680f, 1),
-                // 等待基建界面加载
-                wait(2.0f),
-                // 点击"办事"一键领取（如果界面有一键领取功能）
-                click(1100f, 650f, 2),
-                // 等待处理
-                wait(1.5f),
-                // 点击第一个贸易站
-                click(300f, 400f, 3),
-                wait(0.5f),
-                // 领取订单
-                click(640f, 360f, 4),
-                wait(0.5f),
-                // 返回基建主界面
-                click(50f, 50f, 5),
-                wait(0.5f),
-                // 点击制造站
-                click(640f, 400f, 6),
-                wait(0.5f),
-                // 领取产物
-                click(640f, 360f, 7),
-                wait(0.5f),
-                // 返回基建主界面
-                click(50f, 50f, 8),
-                wait(0.5f),
-                // 如果有无人机可用，点击加速
-                click(1150f, 200f, 9),
-                wait(0.5f),
-                // 确认加速
-                click(640f, 400f, 10),
-                wait(1.0f),
-                // 返回主界面
-                click(50f, 50f, 11),
-                wait(1.5f),
-                // 再次点击返回确保退出基建
-                click(50f, 50f, 12)
+                wait(1.5f, "等待主界面加载"),
+                click(640f, 680f, 1, "点击「基建」按钮"),
+                wait(2.0f, "等待基建界面加载"),
+                click(1100f, 650f, 2, "点击「办事」一键领取"),
+                wait(1.5f, "等待处理完成"),
+                click(300f, 400f, 3, "点击第一个贸易站"),
+                wait(0.5f, "等待贸易站界面"),
+                click(640f, 360f, 4, "领取订单"),
+                wait(0.5f, "等待领取动画"),
+                click(50f, 50f, 5, "返回基建主界面"),
+                wait(0.5f, "等待界面返回"),
+                click(640f, 400f, 6, "点击制造站"),
+                wait(0.5f, "等待制造站界面"),
+                click(640f, 360f, 7, "领取产物"),
+                wait(0.5f, "等待领取动画"),
+                click(50f, 50f, 8, "返回基建主界面"),
+                wait(0.5f, "等待界面返回"),
+                click(1150f, 200f, 9, "点击无人机加速"),
+                wait(0.5f, "等待加速界面"),
+                click(640f, 400f, 10, "确认加速"),
+                wait(1.0f, "等待加速完成"),
+                click(50f, 50f, 11, "返回主界面"),
+                wait(1.5f, "等待主界面"),
+                click(50f, 50f, 12, "确保退出基建")
             )
         )
     
@@ -140,37 +128,24 @@ object PresetSchemes {
     val collectRewards: ClickScheme
         get() = ClickScheme(
             name = "领取邮件+任务",
+            description = "前提：从主界面开始\n流程：打开邮件→一键领取→关闭邮件→打开任务→领取全部奖励→返回主界面",
             points = listOf(
-                // 等待主界面加载
-                wait(1.5f),
-                // 点击邮件图标
-                click(1200f, 50f, 1),
-                // 等待邮件列表加载
-                wait(1.5f),
-                // 点击一键领取
-                click(640f, 400f, 2),
-                // 等待领取动画
-                wait(2.0f),
-                // 点击确定（如果有确认对话框）
-                click(640f, 400f, 3),
-                wait(0.5f),
-                // 关闭邮件界面
-                click(50f, 50f, 4),
-                // 等待返回主界面
-                wait(1.5f),
-                // 点击任务入口
-                click(1180f, 680f, 5),
-                // 等待任务界面加载
-                wait(1.5f),
-                // 点击领取全部奖励
-                click(640f, 500f, 6),
-                // 等待领取动画
-                wait(2.0f),
-                // 点击确定（如果有确认对话框）
-                click(640f, 400f, 7),
-                wait(0.5f),
-                // 返回主界面
-                click(50f, 50f, 8)
+                wait(1.5f, "等待主界面加载"),
+                click(1200f, 50f, 1, "点击邮件图标"),
+                wait(1.5f, "等待邮件列表加载"),
+                click(640f, 400f, 2, "点击一键领取"),
+                wait(2.0f, "等待领取动画"),
+                click(640f, 400f, 3, "点击确定（确认对话框）"),
+                wait(0.5f, "等待对话框关闭"),
+                click(50f, 50f, 4, "关闭邮件界面"),
+                wait(1.5f, "等待返回主界面"),
+                click(1180f, 680f, 5, "点击任务入口"),
+                wait(1.5f, "等待任务界面加载"),
+                click(640f, 500f, 6, "点击领取全部奖励"),
+                wait(2.0f, "等待领取动画"),
+                click(640f, 400f, 7, "点击确定（确认对话框）"),
+                wait(0.5f, "等待对话框关闭"),
+                click(50f, 50f, 8, "返回主界面")
             )
         )
     
@@ -193,38 +168,28 @@ object PresetSchemes {
     val creditStore: ClickScheme
         get() = ClickScheme(
             name = "信用商店",
+            description = "前提：从主界面开始\n流程：进入商店→信用交易所→购买打折物品（3个）→返回主界面",
             points = listOf(
-                // 等待主界面加载
-                wait(1.5f),
-                // 点击商店入口
-                click(960f, 680f, 1),
-                // 等待商店界面加载
-                wait(1.5f),
-                // 点击信用交易所
-                click(150f, 300f, 2),
-                // 等待信用商店加载
-                wait(1.5f),
-                // 点击购买第一个商品
-                click(1000f, 300f, 3),
-                // 等待购买确认
-                wait(0.5f),
-                // 确认购买
-                click(640f, 400f, 4),
-                wait(0.5f),
-                // 再次购买（如果还有）
-                click(1000f, 380f, 5),
-                wait(0.5f),
-                click(640f, 400f, 6),
-                wait(0.5f),
-                // 再次购买
-                click(1000f, 460f, 7),
-                wait(0.5f),
-                click(640f, 400f, 8),
-                wait(0.5f),
-                // 返回主界面
-                click(50f, 50f, 9),
-                wait(0.5f),
-                click(50f, 50f, 10)
+                wait(1.5f, "等待主界面加载"),
+                click(960f, 680f, 1, "点击商店入口"),
+                wait(1.5f, "等待商店界面加载"),
+                click(150f, 300f, 2, "点击信用交易所"),
+                wait(1.5f, "等待信用商店加载"),
+                click(1000f, 300f, 3, "购买第1个商品"),
+                wait(0.5f, "等待购买确认"),
+                click(640f, 400f, 4, "确认购买"),
+                wait(0.5f, "等待购买完成"),
+                click(1000f, 380f, 5, "购买第2个商品"),
+                wait(0.5f, "等待购买确认"),
+                click(640f, 400f, 6, "确认购买"),
+                wait(0.5f, "等待购买完成"),
+                click(1000f, 460f, 7, "购买第3个商品"),
+                wait(0.5f, "等待购买确认"),
+                click(640f, 400f, 8, "确认购买"),
+                wait(0.5f, "等待购买完成"),
+                click(50f, 50f, 9, "返回"),
+                wait(0.5f, "等待界面返回"),
+                click(50f, 50f, 10, "返回主界面")
             )
         )
     
@@ -254,40 +219,26 @@ object PresetSchemes {
     val farm16: ClickScheme
         get() = ClickScheme(
             name = "刷1-6",
+            description = "前提：从主界面开始，确保有足够理智\n流程：作战→主题曲→物资筹备→选择LS-6→代理指挥→等待战斗结束（约50秒）→领取奖励\n⚠️ 每次循环消耗30理智，请确保理智充足",
             points = listOf(
-                // 等待主界面加载
-                wait(1.5f),
-                // 点击"作战"按钮进入选关界面
-                click(320f, 680f, 1),
-                // 等待关卡选择界面加载
-                wait(2.0f),
-                // 点击"主题曲"进入主题曲关卡
-                click(200f, 200f, 2),
-                wait(1.0f),
-                // 点击"物资筹备"章节
-                click(200f, 280f, 3),
-                wait(1.0f),
-                // 选择LS-6关卡（第6个关卡位置）
-                click(640f, 550f, 4),
-                // 等待关卡详情加载
-                wait(1.5f),
-                // 点击"开始行动"
-                click(1100f, 650f, 5),
-                // 等待行动确认界面
-                wait(1.0f),
-                // 点击"代理指挥"启用自律（如果是首次，可能需要滑动或点击特定位置）
-                click(640f, 450f, 6),
-                wait(0.5f),
-                // 确认开始
-                click(640f, 550f, 7),
-                // 等待战斗结束（LS-6大约需要45秒）
-                wait(50.0f),
-                // 领取结算奖励
-                click(640f, 400f, 8),
-                wait(1.0f),
-                // 点击继续/确定
-                click(640f, 400f, 9),
-                wait(1.0f)
+                wait(1.5f, "等待主界面加载"),
+                click(320f, 680f, 1, "点击「作战」按钮"),
+                wait(2.0f, "等待关卡选择界面"),
+                click(200f, 200f, 2, "点击「主题曲」"),
+                wait(1.0f, "等待加载"),
+                click(200f, 280f, 3, "点击「物资筹备」"),
+                wait(1.0f, "等待关卡列表加载"),
+                click(640f, 550f, 4, "选择LS-6关卡"),
+                wait(1.5f, "等待关卡详情加载"),
+                click(1100f, 650f, 5, "点击「开始行动」"),
+                wait(1.0f, "等待行动确认界面"),
+                click(640f, 450f, 6, "点击「代理指挥」"),
+                wait(0.5f, "等待确认"),
+                click(640f, 550f, 7, "确认开始战斗"),
+                wait(50.0f, "等待战斗结束（约50秒）"),
+                click(640f, 400f, 8, "领取结算奖励"),
+                wait(1.0f, "等待结算动画"),
+                click(640f, 400f, 9, "点击继续/确定")
             )
         )
     
@@ -314,33 +265,23 @@ object PresetSchemes {
     val friendClue: ClickScheme
         get() = ClickScheme(
             name = "好友线索交流",
+            description = "前提：从主界面开始\n流程：打开好友→线索交流→开始交流→领取奖励→返回主界面",
             points = listOf(
-                // 等待主界面加载
-                wait(1.5f),
-                // 点击"好友"按钮
-                click(1180f, 680f, 1),
-                // 等待好友界面加载
-                wait(2.0f),
-                // 点击"线索交流"标签
-                click(400f, 100f, 2),
-                // 等待线索交流界面加载
-                wait(1.5f),
-                // 点击"开始交流"按钮
-                click(640f, 400f, 3),
-                // 等待交流进行
-                wait(2.0f),
-                // 如果有确认对话框，点击确认
-                click(640f, 400f, 4),
-                wait(1.0f),
-                // 点击"领取奖励"或确认获得线索
-                click(640f, 350f, 5),
-                wait(1.0f),
-                // 如果需要，点击"发送线索"
-                click(640f, 500f, 6),
-                wait(1.0f),
-                // 返回主界面
-                click(50f, 50f, 7),
-                wait(1.5f)
+                wait(1.5f, "等待主界面加载"),
+                click(1180f, 680f, 1, "点击「好友」按钮"),
+                wait(2.0f, "等待好友界面加载"),
+                click(400f, 100f, 2, "点击「线索交流」标签"),
+                wait(1.5f, "等待线索交流界面"),
+                click(640f, 400f, 3, "点击「开始交流」"),
+                wait(2.0f, "等待交流进行"),
+                click(640f, 400f, 4, "确认对话框"),
+                wait(1.0f, "等待确认"),
+                click(640f, 350f, 5, "领取奖励"),
+                wait(1.0f, "等待领取动画"),
+                click(640f, 500f, 6, "发送线索"),
+                wait(1.0f, "等待发送完成"),
+                click(50f, 50f, 7, "返回主界面"),
+                wait(1.5f, "等待主界面")
             )
         )
     
@@ -354,48 +295,46 @@ object PresetSchemes {
     val dailyComplete: ClickScheme
         get() = ClickScheme(
             name = "完整日常",
+            description = "前提：从主界面开始\n流程：基建收菜→领取邮件→领取任务奖励→信用商店购物\n⚠️ 方案较长，请确保游戏不会中途超时断线",
             points = listOf(
                 // ========== 基建收菜 ==========
-                wait(1.5f),
-                click(640f, 680f, 1),  // 进入基建
-                wait(2.0f),
-                click(1100f, 650f, 2),  // 办事/一键领取
-                wait(1.5f),
-                click(50f, 50f, 3),  // 返回
-                wait(1.5f),
-                
+                wait(1.5f, "等待主界面加载"),
+                click(640f, 680f, 1, "进入基建"),
+                wait(2.0f, "等待基建界面"),
+                click(1100f, 650f, 2, "办事/一键领取"),
+                wait(1.5f, "等待处理"),
+                click(50f, 50f, 3, "返回"),
+                wait(1.5f, "等待返回主界面"),
                 // ========== 领取邮件 ==========
-                click(1200f, 50f, 4),  // 邮件
-                wait(1.5f),
-                click(640f, 400f, 5),  // 一键领取
-                wait(2.0f),
-                click(640f, 400f, 6),  // 确定
-                wait(0.5f),
-                click(50f, 50f, 7),  // 返回
-                wait(1.5f),
-                
+                click(1200f, 50f, 4, "点击邮件"),
+                wait(1.5f, "等待邮件列表"),
+                click(640f, 400f, 5, "一键领取"),
+                wait(2.0f, "等待领取动画"),
+                click(640f, 400f, 6, "确定"),
+                wait(0.5f, "等待对话框关闭"),
+                click(50f, 50f, 7, "返回"),
+                wait(1.5f, "等待返回主界面"),
                 // ========== 领取任务 ==========
-                click(1180f, 680f, 8),  // 任务
-                wait(1.5f),
-                click(640f, 500f, 9),  // 领取全部
-                wait(2.0f),
-                click(640f, 400f, 10),  // 确定
-                wait(0.5f),
-                click(50f, 50f, 11),  // 返回主界面
-                wait(1.5f),
-                
+                click(1180f, 680f, 8, "点击任务"),
+                wait(1.5f, "等待任务界面"),
+                click(640f, 500f, 9, "领取全部"),
+                wait(2.0f, "等待领取动画"),
+                click(640f, 400f, 10, "确定"),
+                wait(0.5f, "等待对话框关闭"),
+                click(50f, 50f, 11, "返回主界面"),
+                wait(1.5f, "等待返回主界面"),
                 // ========== 信用商店 ==========
-                click(960f, 680f, 12),  // 商店
-                wait(1.5f),
-                click(150f, 300f, 13),  // 信用交易所
-                wait(1.5f),
-                click(1000f, 300f, 14),  // 购买
-                wait(0.5f),
-                click(640f, 400f, 15),  // 确认
-                wait(0.5f),
-                click(50f, 50f, 16),  // 返回
-                wait(0.5f),
-                click(50f, 50f, 17)  // 返回主界面
+                click(960f, 680f, 12, "点击商店"),
+                wait(1.5f, "等待商店界面"),
+                click(150f, 300f, 13, "信用交易所"),
+                wait(1.5f, "等待信用商店"),
+                click(1000f, 300f, 14, "购买商品"),
+                wait(0.5f, "等待购买确认"),
+                click(640f, 400f, 15, "确认购买"),
+                wait(0.5f, "等待购买完成"),
+                click(50f, 50f, 16, "返回"),
+                wait(0.5f, "等待界面返回"),
+                click(50f, 50f, 17, "返回主界面")
             )
         )
     

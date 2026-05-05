@@ -18,13 +18,15 @@ enum class OperationType {
  * @param order 顺序编号
  * @param type 操作类型（点击/长按/等待）
  * @param duration 时长参数（长按时为按住毫秒数，等待时为等待秒数*1000）
+ * @param label 步骤说明（如"点击基建按钮"、"等待界面加载"）
  */
 data class ClickPoint(
     val x: Float,
     val y: Float,
     val order: Int = 0,
     val type: OperationType = OperationType.CLICK,
-    val duration: Long = 0  // 长按时为毫秒数，等待时为毫秒数
+    val duration: Long = 0,  // 长按时为毫秒数，等待时为毫秒数
+    val label: String = ""  // 步骤说明
 ) : Serializable
 
 /**
