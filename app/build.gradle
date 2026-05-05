@@ -27,16 +27,11 @@ android {
     buildTypes {
         debug {
             signingConfig signingConfigs.release
-            // 启用 v1 和 v2 签名确保兼容性
-            v1SigningEnabled true
-            v2SigningEnabled true
         }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
-            v1SigningEnabled true
-            v2SigningEnabled true
         }
     }
 
