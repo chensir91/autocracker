@@ -24,6 +24,10 @@ import com.autoclicker.arknights.data.OperationType
  */
 class RecordingOverlayView(context: Context) : View(context) {
     
+    // 覆盖层在屏幕上的偏移量（用于坐标转换）
+    private var screenOffsetX = 0
+    private var screenOffsetY = 0
+    
     // 半透明淡绿色填充
     private val circlePaint = Paint().apply {
         color = Color.argb(80, 76, 175, 80)  // 半透明淡绿色
@@ -213,8 +217,21 @@ class RecordingOverlayView(context: Context) : View(context) {
         isFocusable = true
     }
     
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        updateScreenOffset()
+    }
+    
+    private fun updateScreenOffset() {
+        val location = IntArray(2)
+        getLocationOnScreen(location)
+        screenOffsetX = location[0]
+        screenOffsetY = location[1]
+    }
+    
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
+        updateScreenOffset()
         // 计算停止按钮位置（右上角）
         stopButtonLeft = w - stopButtonWidth - 30f
         stopButtonTop = 30f
@@ -231,24 +248,28 @@ class RecordingOverlayView(context: Context) : View(context) {
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         
+        // 屏幕坐标转View坐标的辅助函数
+        val drawX = { px: Float -> px - screenOffsetX }
+        val drawY = { py: Float -> py - screenOffsetY }
+        
         // 绘制所有已录制的点位
         for (point in recordedPoints) {
             when (point.type) {
                 OperationType.CLICK -> {
-                    canvas.drawCircle(point.x, point.y, 40f, circlePaint)
-                    canvas.drawCircle(point.x, point.y, 40f, circleStrokePaint)
+                    canvas.drawCircle(drawX(point.x), drawY(point.y), 40f, circlePaint)
+                    canvas.drawCircle(drawX(point.x), drawY(point.y), 40f, circleStrokePaint)
                     // 绘制编号
-                    val textY = point.y + (textPaint.textSize / 3)
-                    canvas.drawText(point.order.toString(), point.x, textY, textPaint)
+                    val textY = drawY(point.y) + (textPaint.textSize / 3)
+                    canvas.drawText(point.order.toString(), drawX(point.x), textY, textPaint)
                 }
                 OperationType.LONG_PRESS -> {
-                    canvas.drawCircle(point.x, point.y, 40f, longPressPaint)
-                    canvas.drawCircle(point.x, point.y, 40f, longPressStrokePaint)
+                    canvas.drawCircle(drawX(point.x), drawY(point.y), 40f, longPressPaint)
+                    canvas.drawCircle(drawX(point.x), drawY(point.y), 40f, longPressStrokePaint)
                     // 绘制编号
-                    val textY = point.y + (textPaint.textSize / 3)
-                    canvas.drawText(point.order.toString(), point.x, textY, textPaint)
+                    val textY = drawY(point.y) + (textPaint.textSize / 3)
+                    canvas.drawText(point.order.toString(), drawX(point.x), textY, textPaint)
                     // 绘制类型标签
-                    canvas.drawText("长", point.x, point.y + 60f, typeLabelPaint)
+                    canvas.drawText("长", drawX(point.x), drawY(point.y) + 60f, typeLabelPaint)
                 }
                 OperationType.WAIT -> {
                     // 等待点在屏幕中央上方绘制
@@ -262,22 +283,22 @@ class RecordingOverlayView(context: Context) : View(context) {
                 }
                 OperationType.SWIPE -> {
                     // 绘制滑动起点圆
-                    canvas.drawCircle(point.x, point.y, 30f, swipePaint)
-                    canvas.drawCircle(point.x, point.y, 30f, swipeStrokePaint)
+                    canvas.drawCircle(drawX(point.x), drawY(point.y), 30f, swipePaint)
+                    canvas.drawCircle(drawX(point.x), drawY(point.y), 30f, swipeStrokePaint)
                     
                     // 绘制滑动线
-                    canvas.drawLine(point.x, point.y, point.endX, point.endY, swipeLinePaint)
+                    canvas.drawLine(drawX(point.x), drawY(point.y), drawX(point.endX), drawY(point.endY), swipeLinePaint)
                     
                     // 绘制箭头头部
-                    drawArrowHead(canvas, point.x, point.y, point.endX, point.endY)
+                    drawArrowHead(canvas, drawX(point.x), drawY(point.y), drawX(point.endX), drawY(point.endY))
                     
                     // 绘制终点小圆
-                    canvas.drawCircle(point.endX, point.endY, 20f, swipePaint)
-                    canvas.drawCircle(point.endX, point.endY, 20f, swipeStrokePaint)
+                    canvas.drawCircle(drawX(point.endX), drawY(point.endY), 20f, swipePaint)
+                    canvas.drawCircle(drawX(point.endX), drawY(point.endY), 20f, swipeStrokePaint)
                     
                     // 序号标注在中间
-                    val midX = (point.x + point.endX) / 2
-                    val midY = (point.y + point.endY) / 2
+                    val midX = (drawX(point.x) + drawX(point.endX)) / 2
+                    val midY = (drawY(point.y) + drawY(point.endY)) / 2
                     val textY = midY + (textPaint.textSize / 3)
                     canvas.drawText(point.order.toString(), midX, textY, textPaint)
                     
