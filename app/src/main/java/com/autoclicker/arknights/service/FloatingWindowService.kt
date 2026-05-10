@@ -913,10 +913,10 @@ class FloatingWindowService : Service() {
                         // 先尝试dispatchGesture
                         when (type) {
                             OperationType.CLICK -> {
-                                ClickUtils.click(service, x, y, duration = 50, callback = object : AccessibilityService.GestureResultCallback() {
+                                ClickUtils.click(service, x, y, duration = 50, callback = object : android.accessibilityservice.AccessibilityService.GestureResultCallback() {
                                     override fun onCancelled(gestureDescription: GestureDescription?) {
                                         Log.w(TAG, "dispatchGesture cancelled, trying input tap fallback")
-                                        ClickUtils.clickByInput(x, y)
+                                        com.autoclicker.arknights.util.ClickUtils.clickByInput(x, y)
                                     }
                                 })
                             }
@@ -929,8 +929,8 @@ class FloatingWindowService : Service() {
                         // 无障碍服务不可用时，使用input命令作为fallback
                         Log.w(TAG, "AccessibilityService is null, using input command fallback")
                         when (type) {
-                            OperationType.CLICK -> ClickUtils.clickByInput(x, y)
-                            OperationType.SWIPE -> ClickUtils.swipeByInput(x, y, endX, endY, duration)
+                            OperationType.CLICK -> com.autoclicker.arknights.util.ClickUtils.clickByInput(x, y)
+                            OperationType.SWIPE -> com.autoclicker.arknights.util.ClickUtils.swipeByInput(x, y, endX, endY, duration)
                             else -> {
                                 handler.post {
                                     Toast.makeText(this@FloatingWindowService, "无障碍服务未连接，部分操作无法回放", Toast.LENGTH_SHORT).show()
