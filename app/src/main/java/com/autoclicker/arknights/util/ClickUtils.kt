@@ -162,24 +162,30 @@ object ClickUtils {
         holdDuration: Long = 500,
         dragDuration: Long = 300
     ) {
-        // 长按拖动：先在起点长按，再拖动到终点
-        // 方案：用一条完整的path，从起点经中间停顿到终点
-        // Path: moveTo起点 -> 一小段位移模拟长按 -> lineTo终点
-        val path = Path()
-        path.moveTo(startX, startY)
-        // 添加一个极小的位移（1像素），让系统认为是有效的stroke
-        path.lineTo(startX + 1f, startY)
-        // 再移回，然后拖到终点
-        path.lineTo(endX, endY)
-        
-        // 总时长 = 长按时间 + 拖动时间
-        val totalDuration = holdDuration + dragDuration
-        
-        val stroke = GestureDescription.StrokeDescription(path, 0, totalDuration)
-        val gesture = GestureDescription.Builder()
-            .addStroke(stroke)
+        // 长按拖动：分两步派发
+        // 第1步：在起点长按（willContinue=true，表示后续还有手势）
+        val holdPath = Path()
+        holdPath.moveTo(startX, startY)
+        val holdStroke = GestureDescription.StrokeDescription(holdPath, 0, holdDuration, true)
+        val holdGesture = GestureDescription.Builder()
+            .addStroke(holdStroke)
             .build()
         
-        service.dispatchGesture(gesture, null, null)
+        service.dispatchGesture(holdGesture, object : AccessibilityService.GestureResultCallback() {
+            override fun onCompleted(gestureDescription: GestureDescription) {
+                // 第2步：长按完成，继续拖动到终点
+                val dragPath = Path()
+                dragPath.moveTo(startX, startY)
+                dragPath.lineTo(endX, endY)
+                val dragStroke = holdStroke.continueStroke(dragPath, holdDuration, dragDuration, false)
+                val dragGesture = GestureDescription.Builder()
+                    .addStroke(dragStroke)
+                    .build()
+                service.dispatchGesture(dragGesture, null, null)
+            }
+            override fun onCancelled(gestureDescription: GestureDescription) {
+                // 长按被取消，不继续拖动
+            }
+        }, null)
     }
 }
