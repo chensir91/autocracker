@@ -503,18 +503,23 @@ class MainActivity : AppCompatActivity() {
     /**
      * 显示加载方案对话框（支持预设方案和我的方案）
      */
+    
+    /**
+     * 显示加载方案对话框（支持预设日常方案和我的方案）
+     */
     private fun showLoadDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_load_scheme, null)
         val tabLayout = dialogView.findViewById<TabLayout>(R.id.tabLayout)
-        val rvPresets = dialogView.findViewById<RecyclerView>(R.id.rvPresetSchemes)
+        val layoutDailyScheme = dialogView.findViewById<android.widget.LinearLayout>(R.id.layoutDailyScheme)
+        val layoutSubschemes = dialogView.findViewById<android.widget.LinearLayout>(R.id.layoutSubschemes)
+        val btnLoadDaily = dialogView.findViewById<android.widget.Button>(R.id.btnLoadDailyScheme)
         val rvSchemes = dialogView.findViewById<RecyclerView>(R.id.rvSchemes)
         val tvEmptyHint = dialogView.findViewById<android.widget.TextView>(R.id.tvEmptyHint)
-        val tvPresetHint = dialogView.findViewById<android.widget.TextView>(R.id.tvPresetHint)
         
-        // 获取预设方案和我的方案
+        // 获取分辨率和我的方案
         val (screenWidth, screenHeight) = settingsManager.getResolution()
-        val presetSchemes = PresetSchemes.getAllPresets(screenWidth, screenHeight)
         val mySchemes = settingsManager.getAllSchemes()
+        val subSchemes = PresetSchemes.getSubSchemes()
         
         // 创建对话框
         val dialog = AlertDialog.Builder(this)
@@ -522,14 +527,24 @@ class MainActivity : AppCompatActivity() {
             .setNegativeButton(getString(R.string.cancel), null)
             .create()
         
-        // 预设方案适配器
-        val presetAdapter = PresetSchemeAdapter(presetSchemes) { scheme ->
-            floatingService?.loadScheme(scheme)
-            refreshPointList()
-            Toast.makeText(this@MainActivity, 
-                "已加载预设方案: ${scheme.name}\n共${scheme.points.size}个步骤", 
-                Toast.LENGTH_SHORT).show()
-            dialog.dismiss()
+        // 默认勾选：基建收菜、领取奖励、好友线索
+        val defaultSelected = setOf("base", "rewards", "friend")
+        val checkboxStates = mutableMapOf<String, Boolean>()
+        subSchemes.forEach { checkboxStates[it.id] = defaultSelected.contains(it.id) }
+        
+        // 创建多选框列表
+        val checkboxes = mutableListOf<android.widget.CheckBox>()
+        for (subScheme in subSchemes) {
+            val checkBox = android.widget.CheckBox(this).apply {
+                text = "${subScheme.name}：${subScheme.desc}"
+                isChecked = checkboxStates[subScheme.id] ?: false
+                setTextColor(getColor(R.color.text_primary))
+            }
+            checkBox.setOnCheckedChangeListener { _, isChecked ->
+                checkboxStates[subScheme.id] = isChecked
+            }
+            checkboxes.add(checkBox)
+            layoutSubschemes.addView(checkBox)
         }
         
         // 我的方案适配器
@@ -544,32 +559,27 @@ class MainActivity : AppCompatActivity() {
         )
         
         // 设置适配器
-        rvPresets.layoutManager = LinearLayoutManager(this)
-        rvPresets.adapter = presetAdapter
         rvSchemes.layoutManager = LinearLayoutManager(this)
         rvSchemes.adapter = myAdapter
         
-        // 默认显示预设方案
-        rvPresets.visibility = View.VISIBLE
+        // 默认显示预设方案（日常方案）
+        layoutDailyScheme.visibility = View.VISIBLE
         rvSchemes.visibility = View.GONE
-        tvPresetHint.visibility = View.VISIBLE
         
         // Tab切换监听
         tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab?) {
                 when (tab?.position) {
                     0 -> {
-                        // 预设方案
-                        rvPresets.visibility = View.VISIBLE
+                        // 预设方案（日常方案）
+                        layoutDailyScheme.visibility = View.VISIBLE
                         rvSchemes.visibility = View.GONE
-                        tvPresetHint.visibility = View.VISIBLE
                         tvEmptyHint.visibility = View.GONE
                     }
                     1 -> {
                         // 我的方案
-                        rvPresets.visibility = View.GONE
+                        layoutDailyScheme.visibility = View.GONE
                         rvSchemes.visibility = View.VISIBLE
-                        tvPresetHint.visibility = View.GONE
                         if (mySchemes.isEmpty()) {
                             tvEmptyHint.visibility = View.VISIBLE
                         } else {
@@ -582,6 +592,29 @@ class MainActivity : AppCompatActivity() {
             override fun onTabUnselected(tab: TabLayout.Tab?) {}
             override fun onTabReselected(tab: TabLayout.Tab?) {}
         })
+        
+        // 加载日常方案按钮
+        btnLoadDaily.setOnClickListener {
+            val selectedIds = checkboxStates.filter { it.value }.keys.toList()
+            if (selectedIds.isEmpty()) {
+                Toast.makeText(this@MainActivity, "请至少选择一个子方案", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            
+            val scheme = PresetSchemes.buildDailyScheme(selectedIds, screenWidth, screenHeight)
+            if (scheme.points.isEmpty()) {
+                Toast.makeText(this@MainActivity, "所选子方案没有有效的点击点位", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            
+            floatingService?.loadScheme(scheme)
+            refreshPointList()
+            val clickCount = scheme.points.count { it.type != OperationType.WAIT }
+            Toast.makeText(this@MainActivity, 
+                "已加载日常方案\n包含${selectedIds.size}个子方案，共${clickCount}个点击步骤", 
+                Toast.LENGTH_SHORT).show()
+            dialog.dismiss()
+        }
         
         dialog.show()
     }

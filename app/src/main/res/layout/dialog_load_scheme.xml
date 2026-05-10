@@ -37,23 +37,39 @@
             android:text="我的方案" />
     </com.google.android.material.tabs.TabLayout>
 
-    <!-- 预设方案说明 -->
-    <TextView
-        android:id="@+id/tvPresetHint"
+    <!-- 预设方案：日常方案多选列表 -->
+    <LinearLayout
+        android:id="@+id/layoutDailyScheme"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="预设方案基于2800x1260分辨率，坐标可能需要微调"
-        android:textColor="@color/text_secondary"
-        android:textSize="12sp" />
-
-    <!-- 预设方案列表 -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/rvPresetSchemes"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:maxHeight="300dp" />
+        android:orientation="vertical"
+        android:layout_marginTop="12dp"
+        android:visibility="visible">
+        
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="选择子方案（可多选）"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp" />
+        
+        <!-- 多选框列表将由代码动态生成 -->
+        <LinearLayout
+            android:id="@+id/layoutSubschemes"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="8dp" />
+        
+        <Button
+            android:id="@+id/btnLoadDailyScheme"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="加载日常方案"
+            android:textColor="@android:color/white"
+            android:backgroundTint="@color/primary" />
+    </LinearLayout>
 
     <!-- 我的方案列表 -->
     <TextView

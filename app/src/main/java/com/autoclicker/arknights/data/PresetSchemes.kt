@@ -63,6 +63,52 @@ object PresetSchemes {
         )
     }
     
+    // ============ 子方案 ============
+    
+    /**
+     * 子方案信息
+     */
+    data class SubScheme(val id: String, val name: String, val desc: String)
+    
+    /**
+     * 获取所有子方案列表
+     */
+    fun getSubSchemes(): List<SubScheme> = listOf(
+        SubScheme("base", "基建收菜", "收取基建产出+订单"),
+        SubScheme("rewards", "领取奖励", "邮件+任务奖励"),
+        SubScheme("credit", "信用商店", "购买打折物品"),
+        SubScheme("farm16", "刷1-6", "物资筹备LS-6"),
+        SubScheme("friend", "好友线索", "线索交流")
+    )
+    
+    /**
+     * 根据勾选的子方案ID列表，拼接生成日常方案
+     */
+    fun buildDailyScheme(selectedIds: List<String>, targetWidth: Int, targetHeight: Int): ClickScheme {
+        val points = mutableListOf<ClickPoint>()
+        var order = 1
+        for (id in selectedIds) {
+            val scheme = when (id) {
+                "base" -> getBaseCollect(targetWidth, targetHeight)
+                "rewards" -> getCollectRewards(targetWidth, targetHeight)
+                "credit" -> getCreditStore(targetWidth, targetHeight)
+                "farm16" -> getFarm16(targetWidth, targetHeight)
+                "friend" -> getFriendClue(targetWidth, targetHeight)
+                else -> null
+            }
+            if (scheme != null) {
+                for (point in scheme.points) {
+                    if (point.type != OperationType.WAIT) {
+                        points.add(point.copy(order = order++))
+                    } else {
+                        points.add(point)  // WAIT点位不需要重新编号
+                    }
+                }
+            }
+        }
+        return ClickScheme(name = "日常方案", points = points)
+    }
+    
     // ============ 预设方案 ============
     
     /**
@@ -356,87 +402,5 @@ object PresetSchemes {
                 wait(1.5f)
             )
         )
-    }
-    
-    /**
-     * 方案F: 完整日常（综合方案）
-     * 从主界面开始，执行所有日常任务
-     * 按顺序执行：基建收菜 -> 领取奖励 -> 信用商店
-     * 
-     * 注意：这是一个较长的方案，建议设置足够的循环间隔
-     */
-    fun getDailyComplete(targetWidth: Int, targetHeight: Int): ClickScheme {
-        return ClickScheme(
-            name = "完整日常",
-            points = listOf(
-                // ========== 基建收菜 ==========
-                wait(1.5f),
-                click(640f, 680f, 1, targetWidth, targetHeight),  // 进入基建
-                wait(2.0f),
-                click(1100f, 650f, 2, targetWidth, targetHeight),  // 办事/一键领取
-                wait(1.5f),
-                click(50f, 50f, 3, targetWidth, targetHeight),  // 返回
-                wait(1.5f),
-                
-                // ========== 领取邮件 ==========
-                click(1200f, 50f, 4, targetWidth, targetHeight),  // 邮件
-                wait(1.5f),
-                click(640f, 400f, 5, targetWidth, targetHeight),  // 一键领取
-                wait(2.0f),
-                click(640f, 400f, 6, targetWidth, targetHeight),  // 确定
-                wait(0.5f),
-                click(50f, 50f, 7, targetWidth, targetHeight),  // 返回
-                wait(1.5f),
-                
-                // ========== 领取任务 ==========
-                click(1180f, 680f, 8, targetWidth, targetHeight),  // 任务
-                wait(1.5f),
-                click(640f, 500f, 9, targetWidth, targetHeight),  // 领取全部
-                wait(2.0f),
-                click(640f, 400f, 10, targetWidth, targetHeight),  // 确定
-                wait(0.5f),
-                click(50f, 50f, 11, targetWidth, targetHeight),  // 返回主界面
-                wait(1.5f),
-                
-                // ========== 信用商店 ==========
-                click(960f, 680f, 12, targetWidth, targetHeight),  // 商店
-                wait(1.5f),
-                click(150f, 300f, 13, targetWidth, targetHeight),  // 信用交易所
-                wait(1.5f),
-                click(1000f, 300f, 14, targetWidth, targetHeight),  // 购买
-                wait(0.5f),
-                click(640f, 400f, 15, targetWidth, targetHeight),  // 确认
-                wait(0.5f),
-                click(50f, 50f, 16, targetWidth, targetHeight),  // 返回
-                wait(0.5f),
-                click(50f, 50f, 17, targetWidth, targetHeight)  // 返回主界面
-            )
-        )
-    }
-    
-    /**
-     * 获取所有预设方案列表
-     * @param targetWidth 目标分辨率宽度
-     * @param targetHeight 目标分辨率高度
-     */
-    fun getAllPresets(targetWidth: Int, targetHeight: Int): List<ClickScheme> {
-        return listOf(
-            getBaseCollect(targetWidth, targetHeight),
-            getCollectRewards(targetWidth, targetHeight),
-            getCreditStore(targetWidth, targetHeight),
-            getFarm16(targetWidth, targetHeight),
-            getFriendClue(targetWidth, targetHeight),
-            getDailyComplete(targetWidth, targetHeight)
-        )
-    }
-    
-    /**
-     * 根据名称获取预设方案
-     * @param name 方案名称
-     * @param targetWidth 目标分辨率宽度
-     * @param targetHeight 目标分辨率高度
-     */
-    fun getPresetByName(name: String, targetWidth: Int, targetHeight: Int): ClickScheme? {
-        return getAllPresets(targetWidth, targetHeight).find { it.name == name }
     }
 }
