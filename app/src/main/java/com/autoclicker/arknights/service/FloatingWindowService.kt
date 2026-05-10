@@ -709,7 +709,7 @@ class FloatingWindowService : Service() {
                             startY = point.y,
                             endX = point.endX,
                             endY = point.endY,
-                            holdDuration = point.duration
+                            duration = point.duration
                         )
                         totalClicks++
                         clickCountSinceLastPause++
