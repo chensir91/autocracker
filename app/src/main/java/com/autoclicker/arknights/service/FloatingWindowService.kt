@@ -686,7 +686,7 @@ class FloatingWindowService : Service() {
                             service = service,
                             x = point.x,
                             y = point.y,
-                            duration = point.duration,
+                            holdDuration = point.duration,
                             offsetRange = settings.offsetRange
                         )
                         totalClicks++
@@ -709,7 +709,7 @@ class FloatingWindowService : Service() {
                             startY = point.y,
                             endX = point.endX,
                             endY = point.endY,
-                            duration = point.duration
+                            holdDuration = point.duration
                         )
                         totalClicks++
                         clickCountSinceLastPause++
@@ -723,7 +723,7 @@ class FloatingWindowService : Service() {
                             startY = point.y,
                             endX = point.endX,
                             endY = point.endY,
-                            duration = point.duration
+                            holdDuration = point.duration
                         )
                         totalClicks++
                         clickCountSinceLastPause++
@@ -910,7 +910,7 @@ class FloatingWindowService : Service() {
                             OperationType.CLICK -> ClickUtils.click(service, x, y, duration = 50)
                             OperationType.LONG_PRESS -> ClickUtils.longPress(service, x, y, duration = duration)
                             OperationType.SWIPE -> ClickUtils.swipe(service, x, y, endX, endY, duration = duration)
-                            OperationType.LONG_PRESS_DRAG -> ClickUtils.longPressDrag(service, x, y, endX, endY, duration = duration)
+                            OperationType.LONG_PRESS_DRAG -> ClickUtils.longPressDrag(service, x, y, endX, endY, holdDuration = duration)
                             OperationType.WAIT -> { }
                         }
                     }
