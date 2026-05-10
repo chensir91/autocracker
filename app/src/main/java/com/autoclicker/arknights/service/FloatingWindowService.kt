@@ -299,10 +299,7 @@ class FloatingWindowService : Service() {
             stop()
         }
         
-        // 撤销按钮
-        floatingView.findViewById<ImageButton>(R.id.btnUndo)?.setOnClickListener {
-            undoLastPoint()
-        }
+
         
         floatingView.findViewById<ImageButton>(R.id.btnSettings).setOnClickListener {
             openSettings()
@@ -838,18 +835,20 @@ class FloatingWindowService : Service() {
         val btnStartPause = floatingView.findViewById<ImageButton>(R.id.btnStartPause)
         val btnStop = floatingView.findViewById<ImageButton>(R.id.btnStop)
         val btnSettings = floatingView.findViewById<ImageButton>(R.id.btnSettings)
-        val btnUndo = floatingView.findViewById<ImageButton>(R.id.btnUndo)
         val tvStartPauseLabel = floatingView.findViewById<TextView>(R.id.tvStartPauseLabel)
+        val tvRecordLabel = floatingView.findViewById<TextView>(R.id.tvRecordLabel)
         
         handler.post {
             when {
                 isRecording -> {
+                    btnRecord?.setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
                     btnRecord?.setColorFilter(getColor(R.color.status_recording))
+                    btnRecord?.isEnabled = true
                     btnStartPause?.isEnabled = false
                     btnStop?.isEnabled = false
                     btnSettings?.isEnabled = false
-                    btnUndo?.isEnabled = recordedPoints.isNotEmpty()
                     tvStartPauseLabel?.text = "开始"
+                    tvRecordLabel?.text = "停止"
                 }
                 isRunning -> {
                     btnRecord?.isEnabled = false
@@ -857,7 +856,6 @@ class FloatingWindowService : Service() {
                     btnStartPause?.isEnabled = true
                     btnStop?.isEnabled = true
                     btnSettings?.isEnabled = false
-                    btnUndo?.isEnabled = false
                     tvStartPauseLabel?.text = "暂停"
                 }
                 isPaused -> {
@@ -866,18 +864,18 @@ class FloatingWindowService : Service() {
                     btnStartPause?.isEnabled = true
                     btnStop?.isEnabled = true
                     btnSettings?.isEnabled = false
-                    btnUndo?.isEnabled = false
                     tvStartPauseLabel?.text = "继续"
                 }
                 else -> {
                     btnRecord?.isEnabled = true
+                    btnRecord?.setImageResource(android.R.drawable.ic_menu_edit)
                     btnRecord?.setColorFilter(getColor(R.color.text_secondary))
                     btnStartPause?.setImageResource(android.R.drawable.ic_media_play)
                     btnStartPause?.isEnabled = recordedPoints.isNotEmpty()
                     btnStop?.isEnabled = false
                     btnSettings?.isEnabled = true
-                    btnUndo?.isEnabled = recordedPoints.isNotEmpty()
                     tvStartPauseLabel?.text = "开始"
+                    tvRecordLabel?.text = "录制"
                 }
             }
         }

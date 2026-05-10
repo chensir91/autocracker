@@ -182,64 +182,12 @@ class RecordingOverlayView(context: Context) : View(context) {
     private var instructionShown = true
     
     // 停止按钮区域
-    private val stopButtonPaint = Paint().apply {
-        color = Color.parseColor("#E53935")  // 红色
-        style = Paint.Style.FILL
-        isAntiAlias = true
-    }
-    
-    private val stopButtonPressedPaint = Paint().apply {
-        color = Color.parseColor("#B71C1C")  // 深红色按下
-        style = Paint.Style.FILL
-        isAntiAlias = true
-    }
-    
-    private val stopTextPaint = Paint().apply {
-        color = Color.WHITE
-        textSize = 28f
-        textAlign = Paint.Align.CENTER
-        typeface = Typeface.DEFAULT_BOLD
-        isAntiAlias = true
-    }
     
     // 停止按钮尺寸和位置
-    private val stopButtonWidth = 180f
-    private val stopButtonHeight = 70f
-    private var stopButtonLeft = 0f
-    private var stopButtonTop = 0f
-    private var stopButtonRight = 0f
-    private var stopButtonBottom = 0f
-    private var isStopButtonPressed = false
     
     // 撤销按钮区域
-    private val undoButtonPaint = Paint().apply {
-        color = Color.parseColor("#FF9800")  // 橙色
-        style = Paint.Style.FILL
-        isAntiAlias = true
-    }
-    
-    private val undoButtonPressedPaint = Paint().apply {
-        color = Color.parseColor("#E65100")  // 深橙色按下
-        style = Paint.Style.FILL
-        isAntiAlias = true
-    }
-    
-    private val undoTextPaint = Paint().apply {
-        color = Color.WHITE
-        textSize = 24f
-        textAlign = Paint.Align.CENTER
-        typeface = Typeface.DEFAULT_BOLD
-        isAntiAlias = true
-    }
     
     // 撤销按钮尺寸和位置
-    private val undoButtonWidth = 120f
-    private val undoButtonHeight = 60f
-    private var undoButtonLeft = 0f
-    private var undoButtonTop = 0f
-    private var undoButtonRight = 0f
-    private var undoButtonBottom = 0f
-    private var isUndoButtonPressed = false
     
     init {
         // 设置为可以接收触摸事件
@@ -263,16 +211,14 @@ class RecordingOverlayView(context: Context) : View(context) {
         super.onSizeChanged(w, h, oldw, oldh)
         updateScreenOffset()
         // 计算停止按钮位置（右上角）
-        stopButtonLeft = w - stopButtonWidth - 30f
-        stopButtonTop = 30f
-        stopButtonRight = w - 30f
-        stopButtonBottom = stopButtonTop + stopButtonHeight
+
+
+
         
         // 计算撤销按钮位置（停止按钮下方）
-        undoButtonLeft = w - undoButtonWidth - 30f
-        undoButtonTop = stopButtonBottom + 15f
-        undoButtonRight = w - 30f
-        undoButtonBottom = undoButtonTop + undoButtonHeight
+
+
+
     }
     
     override fun onDraw(canvas: Canvas) {
@@ -386,16 +332,13 @@ class RecordingOverlayView(context: Context) : View(context) {
             
             infoPaint.textSize = 24f
             infoPaint.alpha = 150
-            canvas.drawText("点击红色按钮结束录制", width / 2f, height - 100f, infoPaint)
-            infoPaint.textSize = 40f
+                        infoPaint.textSize = 40f
             infoPaint.alpha = 255
         }
         
         // 绘制停止按钮
-        drawStopButton(canvas)
         
         // 绘制撤销按钮
-        drawUndoButton(canvas)
     }
     
     /**
@@ -419,32 +362,6 @@ class RecordingOverlayView(context: Context) : View(context) {
         canvas.drawPath(path, paint)
     }
     
-    /**
-     * 绘制停止按钮
-     */
-    private fun drawStopButton(canvas: Canvas) {
-        val rect = RectF(stopButtonLeft, stopButtonTop, stopButtonRight, stopButtonBottom)
-        val paint = if (isStopButtonPressed) stopButtonPressedPaint else stopButtonPaint
-        canvas.drawRoundRect(rect, 12f, 12f, paint)
-        
-        // 绘制按钮文字
-        val textY = stopButtonTop + stopButtonHeight / 2 + stopTextPaint.textSize / 3
-        canvas.drawText("停止录制", stopButtonLeft + stopButtonWidth / 2, textY, stopTextPaint)
-    }
-    
-    /**
-     * 绘制撤销按钮
-     */
-    private fun drawUndoButton(canvas: Canvas) {
-        val rect = RectF(undoButtonLeft, undoButtonTop, undoButtonRight, undoButtonBottom)
-        val paint = if (isUndoButtonPressed) undoButtonPressedPaint else undoButtonPaint
-        canvas.drawRoundRect(rect, 12f, 12f, paint)
-        
-        // 绘制按钮文字
-        val textY = undoButtonTop + undoButtonHeight / 2 + undoTextPaint.textSize / 3
-        canvas.drawText("删除", undoButtonLeft + undoButtonWidth / 2, textY, undoTextPaint)
-    }
-    
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val rawX = event.rawX  // 屏幕坐标，用于记录点位和回放
@@ -454,19 +371,7 @@ class RecordingOverlayView(context: Context) : View(context) {
         
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
-                // 检查停止按钮（用View内坐标）
-                if (x >= stopButtonLeft && x <= stopButtonRight && y >= stopButtonTop && y <= stopButtonBottom) {
-                    isStopButtonPressed = true
-                    invalidate()
-                    return true
-                }
-                
-                // 检查撤销按钮（用View内坐标）
-                if (x >= undoButtonLeft && x <= undoButtonRight && y >= undoButtonTop && y <= undoButtonBottom) {
-                    isUndoButtonPressed = true
-                    invalidate()
-                    return true
-                }
+
                 
                 instructionShown = false
                 
@@ -487,38 +392,7 @@ class RecordingOverlayView(context: Context) : View(context) {
             }
             
             MotionEvent.ACTION_UP -> {
-                // 处理停止按钮（用View内坐标）
-                if (isStopButtonPressed) {
-                    isStopButtonPressed = false
-                    if (x >= stopButtonLeft && x <= stopButtonRight && y >= stopButtonTop && y <= stopButtonBottom) {
-                        onFinishRecording?.invoke()
-                    }
-                    invalidate()
-                    return true
-                }
-                
-                // 处理撤销按钮（用View内坐标）
-                if (isUndoButtonPressed) {
-                    isUndoButtonPressed = false
-                    if (x >= undoButtonLeft && x <= undoButtonRight && y >= undoButtonTop && y <= undoButtonBottom) {
-                        if (recordedPoints.isNotEmpty()) {
-                            recordedPoints.removeAt(recordedPoints.size - 1)
-                            onUndoPoint?.invoke()
-                            // 重新编号
-                            recordedPoints.forEachIndexed { index, point ->
-                                val newPoint = point.copy(order = index + 1)
-                                recordedPoints[index] = newPoint
-                            }
-                            // 更新 lastPointTime
-                            lastPointTime = if (recordedPoints.isNotEmpty()) System.currentTimeMillis() else 0L
-                            invalidate()
-                        } else {
-                            Toast.makeText(context, "没有可撤销的点位", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                    invalidate()
-                    return true
-                }
+
                 
                 // 计算按压时长
                 val pressDuration = System.currentTimeMillis() - touchDownTime
@@ -617,8 +491,6 @@ class RecordingOverlayView(context: Context) : View(context) {
             }
             
             MotionEvent.ACTION_CANCEL -> {
-                isStopButtonPressed = false
-                isUndoButtonPressed = false
                 invalidate()
             }
         }
