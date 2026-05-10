@@ -103,6 +103,36 @@ class RecordingOverlayView(context: Context) : View(context) {
         isAntiAlias = true
     }
     
+    // 长按拖动专用 - 半透明橙色填充
+    private val longPressDragPaint = Paint().apply {
+        color = Color.argb(80, 255, 152, 0)  // 半透明橙色
+        style = Paint.Style.FILL
+        isAntiAlias = true
+    }
+    
+    // 长按拖动描边
+    private val longPressDragStrokePaint = Paint().apply {
+        color = Color.parseColor("#FFB74D")  // 淡橙色描边
+        style = Paint.Style.STROKE
+        strokeWidth = 3f
+        isAntiAlias = true
+    }
+    
+    // 长按拖动箭头线
+    private val longPressDragLinePaint = Paint().apply {
+        color = Color.parseColor("#FFB74D")  // 淡橙色
+        style = Paint.Style.STROKE
+        strokeWidth = 4f
+        isAntiAlias = true
+    }
+    
+    // 长按拖动箭头头部
+    private val longPressDragArrowPaint = Paint().apply {
+        color = Color.parseColor("#FFB74D")  // 淡橙色
+        style = Paint.Style.FILL
+        isAntiAlias = true
+    }
+    
     private val textPaint = Paint().apply {
         color = Color.WHITE
         textSize = 32f
@@ -290,7 +320,7 @@ class RecordingOverlayView(context: Context) : View(context) {
                     canvas.drawLine(drawX(point.x), drawY(point.y), drawX(point.endX), drawY(point.endY), swipeLinePaint)
                     
                     // 绘制箭头头部
-                    drawArrowHead(canvas, drawX(point.x), drawY(point.y), drawX(point.endX), drawY(point.endY))
+                    drawArrowHead(canvas, drawX(point.x), drawY(point.y), drawX(point.endX), drawY(point.endY), swipeArrowPaint)
                     
                     // 绘制终点小圆
                     canvas.drawCircle(drawX(point.endX), drawY(point.endY), 20f, swipePaint)
@@ -304,6 +334,30 @@ class RecordingOverlayView(context: Context) : View(context) {
                     
                     // 类型标签
                     canvas.drawText("滑", midX, midY + 50f, typeLabelPaint)
+                }
+                OperationType.LONG_PRESS_DRAG -> {
+                    // 绘制长按拖动起点圆
+                    canvas.drawCircle(drawX(point.x), drawY(point.y), 30f, longPressDragPaint)
+                    canvas.drawCircle(drawX(point.x), drawY(point.y), 30f, longPressDragStrokePaint)
+                    
+                    // 绘制拖动线
+                    canvas.drawLine(drawX(point.x), drawY(point.y), drawX(point.endX), drawY(point.endY), longPressDragLinePaint)
+                    
+                    // 绘制箭头头部
+                    drawArrowHead(canvas, drawX(point.x), drawY(point.y), drawX(point.endX), drawY(point.endY), longPressDragArrowPaint)
+                    
+                    // 绘制终点小圆
+                    canvas.drawCircle(drawX(point.endX), drawY(point.endY), 20f, longPressDragPaint)
+                    canvas.drawCircle(drawX(point.endX), drawY(point.endY), 20f, longPressDragStrokePaint)
+                    
+                    // 序号标注在中间
+                    val midX = (drawX(point.x) + drawX(point.endX)) / 2
+                    val midY = (drawY(point.y) + drawY(point.endY)) / 2
+                    val textY = midY + (textPaint.textSize / 3)
+                    canvas.drawText(point.order.toString(), midX, textY, textPaint)
+                    
+                    // 类型标签
+                    canvas.drawText("拖", midX, midY + 50f, typeLabelPaint)
                 }
             }
         }
@@ -347,7 +401,7 @@ class RecordingOverlayView(context: Context) : View(context) {
     /**
      * 绘制箭头头部
      */
-    private fun drawArrowHead(canvas: Canvas, fromX: Float, fromY: Float, toX: Float, toY: Float) {
+    private fun drawArrowHead(canvas: Canvas, fromX: Float, fromY: Float, toX: Float, toY: Float, paint: Paint = swipeArrowPaint) {
         val angle = Math.atan2((toY - fromY).toDouble(), (toX - fromX).toDouble())
         val arrowLen = 20f
         val arrowAngle = Math.PI / 6  // 30度
@@ -362,7 +416,7 @@ class RecordingOverlayView(context: Context) : View(context) {
         path.lineTo(x1, y1)
         path.lineTo(x2, y2)
         path.close()
-        canvas.drawPath(path, swipeArrowPaint)
+        canvas.drawPath(path, paint)
     }
     
     /**
@@ -388,7 +442,7 @@ class RecordingOverlayView(context: Context) : View(context) {
         
         // 绘制按钮文字
         val textY = undoButtonTop + undoButtonHeight / 2 + undoTextPaint.textSize / 3
-        canvas.drawText("撤销", undoButtonLeft + undoButtonWidth / 2, textY, undoTextPaint)
+        canvas.drawText("删除", undoButtonLeft + undoButtonWidth / 2, textY, undoTextPaint)
     }
     
     @SuppressLint("ClickableViewAccessibility")
@@ -494,21 +548,40 @@ class RecordingOverlayView(context: Context) : View(context) {
                 
                 // 根据移动距离和按压时长判断操作类型（坐标用屏幕坐标）
                 if (moveDistance > SWIPE_DISTANCE_THRESHOLD) {
-                    // 滑动操作
-                    val point = ClickPoint(
-                        x = touchDownX,
-                        y = touchDownY,
-                        order = recordedPoints.size + 1,
-                        type = OperationType.SWIPE,
-                        duration = pressDuration,
-                        endX = rawX,
-                        endY = rawY
-                    )
-                    recordedPoints.add(point)
-                    onPointRecorded?.invoke(point)
-                    
-                    // 回放滑动到游戏
-                    onPlaybackNeeded?.invoke(touchDownX, touchDownY, OperationType.SWIPE, pressDuration, rawX, rawY)
+                    // 有移动时的判断：按压>=500ms → LONG_PRESS_DRAG，否则 → SWIPE
+                    if (pressDuration >= LONG_PRESS_THRESHOLD) {
+                        // 长按拖动（先按后拖）
+                        val point = ClickPoint(
+                            x = touchDownX,
+                            y = touchDownY,
+                            order = recordedPoints.size + 1,
+                            type = OperationType.LONG_PRESS_DRAG,
+                            duration = pressDuration,
+                            endX = rawX,
+                            endY = rawY
+                        )
+                        recordedPoints.add(point)
+                        onPointRecorded?.invoke(point)
+                        
+                        // 回放长按拖动到游戏
+                        onPlaybackNeeded?.invoke(touchDownX, touchDownY, OperationType.LONG_PRESS_DRAG, pressDuration, rawX, rawY)
+                    } else {
+                        // 滑动操作（快速滑动）
+                        val point = ClickPoint(
+                            x = touchDownX,
+                            y = touchDownY,
+                            order = recordedPoints.size + 1,
+                            type = OperationType.SWIPE,
+                            duration = pressDuration,
+                            endX = rawX,
+                            endY = rawY
+                        )
+                        recordedPoints.add(point)
+                        onPointRecorded?.invoke(point)
+                        
+                        // 回放滑动到游戏
+                        onPlaybackNeeded?.invoke(touchDownX, touchDownY, OperationType.SWIPE, pressDuration, rawX, rawY)
+                    }
                 } else if (pressDuration >= LONG_PRESS_THRESHOLD) {
                     // 长按
                     val point = ClickPoint(

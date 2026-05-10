@@ -143,4 +143,40 @@ object ClickUtils {
         
         service.dispatchGesture(gestureDescription, null, null)
     }
+    
+    /**
+     * 执行长按拖动手势（先按住再拖动）
+     * @param service AccessibilityService实例
+     * @param startX 起始X坐标
+     * @param startY 起始Y坐标
+     * @param endX 结束X坐标
+     * @param endY 结束Y坐标
+     * @param duration 手势持续时间（毫秒），包含按住和拖动
+     */
+    fun longPressDrag(
+        service: AccessibilityService,
+        startX: Float,
+        startY: Float,
+        endX: Float,
+        endY: Float,
+        duration: Long = 500
+    ) {
+        // 将时间分配给按压和拖动
+        val pressDuration = (duration * 0.3).toLong().coerceAtLeast(100)  // 30%时间按压
+        val dragDuration = (duration * 0.7).toLong().coerceAtLeast(100)    // 70%时间拖动
+        
+        val path = Path()
+        path.moveTo(startX, startY)
+        
+        // 使用willContinue创建长按部分
+        val pressStroke = GestureDescription.StrokeDescription(path, 0, pressDuration)
+        // 使用continueStroke创建拖动部分
+        val dragStroke = pressStroke.continueStroke(endX, endY, pressDuration, dragDuration)
+        
+        val gestureDescription = GestureDescription.Builder()
+            .addStroke(dragStroke)
+            .build()
+        
+        service.dispatchGesture(gestureDescription, null, null)
+    }
 }

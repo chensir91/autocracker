@@ -12,7 +12,7 @@ import com.autoclicker.arknights.databinding.ActivitySettingsBinding
 
 /**
  * 设置页面 v1.2.0
- * 用于配置点击间隔、循环次数、安全性设置和屏幕分辨率
+ * 用于配置循环次数、安全性设置和屏幕分辨率
  */
 class SettingsActivity : AppCompatActivity() {
     
@@ -20,8 +20,6 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var settingsManager: SettingsManager
     
     // 当前设置值
-    private var currentMinInterval = 10
-    private var currentMaxInterval = 20
     private var currentLoopCount = -1
     
     // 安全性设置
@@ -30,10 +28,6 @@ class SettingsActivity : AppCompatActivity() {
     private var currentPauseMaxClicks = 50
     private var currentPauseMinDuration = 1000
     private var currentPauseMaxDuration = 3000
-    
-    // 操作类型默认值
-    private var currentLongPressDuration = 500
-    private var currentWaitDuration = 1000
     
     // 屏幕分辨率
     private var currentScreenWidth = 2800
@@ -56,9 +50,6 @@ class SettingsActivity : AppCompatActivity() {
     private fun loadCurrentSettings() {
         val settings = settingsManager.getSettings()
         
-        // 转换为厘秒单位
-        currentMinInterval = settings.minIntervalMs / 10
-        currentMaxInterval = settings.maxIntervalMs / 10
         currentLoopCount = settings.loopCount
         
         // 安全性设置
@@ -68,18 +59,12 @@ class SettingsActivity : AppCompatActivity() {
         currentPauseMinDuration = settings.pauseMinDuration
         currentPauseMaxDuration = settings.pauseMaxDuration
         
-        // 操作类型默认值
-        currentLongPressDuration = settings.longPressDuration
-        currentWaitDuration = settings.waitDuration
-        
         // 屏幕分辨率
         currentScreenWidth = settings.screenWidth
         currentScreenHeight = settings.screenHeight
         
-        updateSeekBarDisplay()
         updateLoopCountDisplay()
         updateSecuritySettingsDisplay()
-        updateOperationSettingsDisplay()
         updateResolutionDisplay()
     }
     
@@ -91,36 +76,6 @@ class SettingsActivity : AppCompatActivity() {
         binding.btnBack.setOnClickListener {
             finish()
         }
-        
-        // 最小间隔滑动条
-        binding.seekMinInterval.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (progress > currentMaxInterval) {
-                    seekBar?.progress = currentMaxInterval
-                    return
-                }
-                currentMinInterval = progress
-                updateSeekBarDisplay()
-            }
-            
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-        
-        // 最大间隔滑动条
-        binding.seekMaxInterval.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (progress < currentMinInterval) {
-                    seekBar?.progress = currentMinInterval
-                    return
-                }
-                currentMaxInterval = progress
-                updateSeekBarDisplay()
-            }
-            
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
         
         // 无限循环开关
         binding.switchInfiniteLoop.setOnCheckedChangeListener { _, isChecked ->
@@ -215,28 +170,6 @@ class SettingsActivity : AppCompatActivity() {
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
         
-        // ===== 操作类型默认值 =====
-        
-        // 长按时长
-        binding.seekLongPressDuration.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                currentLongPressDuration = (progress + 1) * 100
-                updateOperationSettingsDisplay()
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-        
-        // 等待时长
-        binding.seekWaitDuration.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                currentWaitDuration = (progress + 1) * 100
-                updateOperationSettingsDisplay()
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-        
         // ===== 屏幕分辨率设置 =====
         
         // 分辨率选择监听
@@ -258,20 +191,6 @@ class SettingsActivity : AppCompatActivity() {
         binding.btnSaveSettings.setOnClickListener {
             saveSettings()
         }
-    }
-    
-    /**
-     * 更新滑动条显示
-     */
-    private fun updateSeekBarDisplay() {
-        binding.seekMinInterval.progress = currentMinInterval
-        binding.seekMaxInterval.progress = currentMaxInterval
-        
-        val minSeconds = currentMinInterval / 10f
-        val maxSeconds = currentMaxInterval / 10f
-        
-        binding.tvMinInterval.text = String.format("%.1fs", minSeconds)
-        binding.tvMaxInterval.text = String.format("%.1fs", maxSeconds)
     }
     
     /**
@@ -305,17 +224,6 @@ class SettingsActivity : AppCompatActivity() {
     }
     
     /**
-     * 更新操作类型默认值显示
-     */
-    private fun updateOperationSettingsDisplay() {
-        binding.seekLongPressDuration.progress = currentLongPressDuration / 100 - 1
-        binding.tvLongPressDuration.text = "${currentLongPressDuration}ms"
-        
-        binding.seekWaitDuration.progress = currentWaitDuration / 100 - 1
-        binding.tvWaitDuration.text = "${currentWaitDuration}ms"
-    }
-    
-    /**
      * 更新屏幕分辨率显示
      */
     private fun updateResolutionDisplay() {
@@ -331,16 +239,6 @@ class SettingsActivity : AppCompatActivity() {
      * 保存设置
      */
     private fun saveSettings() {
-        // 验证输入
-        if (currentMinInterval > currentMaxInterval) {
-            Toast.makeText(this, "最小间隔不能大于最大间隔", Toast.LENGTH_SHORT).show()
-            return
-        }
-        
-        if (currentMinInterval < 1) {
-            currentMinInterval = 1
-        }
-        
         val loopCount = if (binding.switchInfiniteLoop.isChecked) {
             -1
         } else {
@@ -348,8 +246,6 @@ class SettingsActivity : AppCompatActivity() {
         }
         
         val settings = AppSettings(
-            minIntervalMs = currentMinInterval * 10,
-            maxIntervalMs = currentMaxInterval * 10,
             loopCount = loopCount,
             // 安全性设置
             offsetRange = currentOffsetRange,
@@ -357,9 +253,6 @@ class SettingsActivity : AppCompatActivity() {
             pauseMaxClicks = currentPauseMaxClicks,
             pauseMinDuration = currentPauseMinDuration,
             pauseMaxDuration = currentPauseMaxDuration,
-            // 操作类型默认值
-            longPressDuration = currentLongPressDuration,
-            waitDuration = currentWaitDuration,
             // 屏幕分辨率
             screenWidth = currentScreenWidth,
             screenHeight = currentScreenHeight

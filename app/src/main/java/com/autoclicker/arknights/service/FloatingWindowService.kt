@@ -714,6 +714,20 @@ class FloatingWindowService : Service() {
                         totalClicks++
                         clickCountSinceLastPause++
                     }
+                    OperationType.LONG_PRESS_DRAG -> {
+                        // 长按拖动
+                        showClickFeedback(point.x, point.y)
+                        ClickUtils.longPressDrag(
+                            service = service,
+                            startX = point.x,
+                            startY = point.y,
+                            endX = point.endX,
+                            endY = point.endY,
+                            duration = point.duration
+                        )
+                        totalClicks++
+                        clickCountSinceLastPause++
+                    }
                 }
                 
                 // 检查是否需要微停顿
@@ -896,15 +910,17 @@ class FloatingWindowService : Service() {
                             OperationType.CLICK -> ClickUtils.click(service, x, y, duration = 50)
                             OperationType.LONG_PRESS -> ClickUtils.longPress(service, x, y, duration = duration)
                             OperationType.SWIPE -> ClickUtils.swipe(service, x, y, endX, endY, duration = duration)
+                            OperationType.LONG_PRESS_DRAG -> ClickUtils.longPressDrag(service, x, y, endX, endY, duration = duration)
                             OperationType.WAIT -> { }
                         }
                     }
                     
                     // 3. 延迟恢复覆盖层为可触摸
                     val restoreDelay = when (type) {
-                        OperationType.CLICK -> 500L
-                        OperationType.LONG_PRESS -> duration + 500L
-                        OperationType.SWIPE -> duration + 500L
+                        OperationType.CLICK -> 50L
+                        OperationType.LONG_PRESS -> duration + 50L
+                        OperationType.SWIPE -> duration + 50L
+                        OperationType.LONG_PRESS_DRAG -> duration + 50L
                         OperationType.WAIT -> 0L
                     }
                     handler.postDelayed({

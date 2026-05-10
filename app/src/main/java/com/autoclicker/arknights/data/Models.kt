@@ -9,7 +9,8 @@ enum class OperationType {
     CLICK,      // 普通点击
     LONG_PRESS, // 长按
     WAIT,       // 等待
-    SWIPE       // 滑动
+    SWIPE,      // 滑动
+    LONG_PRESS_DRAG  // 长按拖动
 }
 
 /**
