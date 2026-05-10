@@ -55,6 +55,7 @@ class FloatingWindowService : Service() {
     private var miniLayoutParams: WindowManager.LayoutParams? = null
     private var recordingOverlay: RecordingOverlayView? = null
     private var overlayParams: WindowManager.LayoutParams? = null
+    private var overlayRestoreRunnable: Runnable? = null  // 用于取消pending的覆盖层恢复
     
     // 点击反馈视图
     private var clickFeedbackView: ClickFeedbackView? = null
@@ -904,7 +905,7 @@ class FloatingWindowService : Service() {
                 // 1. 让覆盖层穿透触摸，回放手势到游戏
                 makeOverlayNotTouchable()
                 
-                // 2. 延迟派发手势，确保覆盖层已切换为穿透模式
+                // 2. 延迟派发手势，确保覆盖层已切换为穿透模式（200ms确保生效）
                 handler.postDelayed({
                     val service = AutoClickAccessibilityService.instance
                     if (service != null) {
@@ -922,18 +923,18 @@ class FloatingWindowService : Service() {
                         }
                     }
                     
-                    // 3. 延迟恢复覆盖层为可触摸
+                    // 3. 延迟恢复覆盖层为可触摸（给足时间让手势完成注入）
                     val restoreDelay = when (type) {
-                        OperationType.CLICK -> 50L
-                        OperationType.LONG_PRESS -> duration + 50L
-                        OperationType.SWIPE -> duration + 50L
-                        OperationType.LONG_PRESS_DRAG -> duration + 50L
+                        OperationType.CLICK -> 200L
+                        OperationType.LONG_PRESS -> duration + 200L
+                        OperationType.SWIPE -> duration + 200L
+                        OperationType.LONG_PRESS_DRAG -> duration + 500L
                         OperationType.WAIT -> 0L
                     }
-                    handler.postDelayed({
-                        makeOverlayTouchable()
-                    }, restoreDelay)
-                }, 100L)
+                    val runnable = Runnable { makeOverlayTouchable() }
+                    overlayRestoreRunnable = runnable
+                    handler.postDelayed(runnable, restoreDelay)
+                }, 200L)
             }
             onUndoPoint = {
                 if (recordedPoints.isNotEmpty()) {
@@ -984,6 +985,10 @@ class FloatingWindowService : Service() {
      * 用于回放时避免覆盖层捕获模拟的触摸事件
      */
     private fun makeOverlayNotTouchable() {
+        // 取消待执行的恢复操作，防止竞争条件
+        overlayRestoreRunnable?.let { handler.removeCallbacks(it) }
+        overlayRestoreRunnable = null
+        
         recordingOverlay?.let {
             if (!it.isAttachedToWindow) return
             try {
@@ -1002,6 +1007,7 @@ class FloatingWindowService : Service() {
      * 恢复录制覆盖层为可触摸
      */
     private fun makeOverlayTouchable() {
+        overlayRestoreRunnable = null
         recordingOverlay?.let {
             if (!it.isAttachedToWindow) return
             try {
