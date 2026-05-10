@@ -33,6 +33,7 @@ import com.autoclicker.arknights.R
 import com.autoclicker.arknights.data.AppSettings
 import com.autoclicker.arknights.data.ClickPoint
 import com.autoclicker.arknights.data.ClickScheme
+import android.accessibilityservice.GestureDescription
 import com.autoclicker.arknights.data.OperationType
 import com.autoclicker.arknights.data.SettingsManager
 import com.autoclicker.arknights.ui.DraggableFrameLayout
@@ -905,21 +906,36 @@ class FloatingWindowService : Service() {
                 // 1. 让覆盖层穿透触摸，回放手势到游戏
                 makeOverlayNotTouchable()
                 
-                // 2. 延迟派发手势，确保覆盖层已切换为穿透模式（200ms确保生效）
+                // 2. 延迟派发手势，确保覆盖层已切换为穿透模式
                 handler.postDelayed({
                     val service = AutoClickAccessibilityService.instance
                     if (service != null) {
+                        // 先尝试dispatchGesture
                         when (type) {
-                            OperationType.CLICK -> ClickUtils.click(service, x, y, duration = 50)
+                            OperationType.CLICK -> {
+                                ClickUtils.click(service, x, y, duration = 50, callback = object : AccessibilityService.GestureResultCallback() {
+                                    override fun onCancelled(gestureDescription: GestureDescription?) {
+                                        Log.w(TAG, "dispatchGesture cancelled, trying input tap fallback")
+                                        ClickUtils.clickByInput(x, y)
+                                    }
+                                })
+                            }
                             OperationType.LONG_PRESS -> ClickUtils.longPress(service, x, y, duration = duration)
                             OperationType.SWIPE -> ClickUtils.swipe(service, x, y, endX, endY, duration = duration)
                             OperationType.LONG_PRESS_DRAG -> ClickUtils.longPressDrag(service, x, y, endX, endY, holdDuration = duration)
                             OperationType.WAIT -> { }
                         }
                     } else {
-                        Log.w(TAG, "AccessibilityService is null, cannot playback during recording")
-                        handler.post {
-                            Toast.makeText(this@FloatingWindowService, "无障碍服务未连接，无法回放操作", Toast.LENGTH_SHORT).show()
+                        // 无障碍服务不可用时，使用input命令作为fallback
+                        Log.w(TAG, "AccessibilityService is null, using input command fallback")
+                        when (type) {
+                            OperationType.CLICK -> ClickUtils.clickByInput(x, y)
+                            OperationType.SWIPE -> ClickUtils.swipeByInput(x, y, endX, endY, duration)
+                            else -> {
+                                handler.post {
+                                    Toast.makeText(this@FloatingWindowService, "无障碍服务未连接，部分操作无法回放", Toast.LENGTH_SHORT).show()
+                                }
+                            }
                         }
                     }
                     

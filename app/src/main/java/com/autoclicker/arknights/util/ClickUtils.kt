@@ -3,6 +3,7 @@ package com.autoclicker.arknights.util
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.graphics.Path
+import android.util.Log
 import kotlin.random.Random
 
 /**
