@@ -410,6 +410,10 @@ class FloatingWindowService : Service() {
     fun toggleRecording() {
         isRecording = !isRecording
         if (isRecording) {
+            // 检查无障碍服务
+            if (AutoClickAccessibilityService.instance == null) {
+                Toast.makeText(this, "无障碍服务未连接，录制时无法回放操作到游戏", Toast.LENGTH_LONG).show()
+            }
             // 开始录制前先停止连点
             stopClicking()
             recordedPoints.clear()
@@ -910,6 +914,11 @@ class FloatingWindowService : Service() {
                             OperationType.SWIPE -> ClickUtils.swipe(service, x, y, endX, endY, duration = duration)
                             OperationType.LONG_PRESS_DRAG -> ClickUtils.longPressDrag(service, x, y, endX, endY, holdDuration = duration)
                             OperationType.WAIT -> { }
+                        }
+                    } else {
+                        Log.w(TAG, "AccessibilityService is null, cannot playback during recording")
+                        handler.post {
+                            Toast.makeText(this@FloatingWindowService, "无障碍服务未连接，无法回放操作", Toast.LENGTH_SHORT).show()
                         }
                     }
                     
