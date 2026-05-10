@@ -907,7 +907,6 @@ class FloatingWindowService : Service() {
                 // FLAG_NOT_TOUCHABLE在MIUI上可能不生效，覆盖层仍然拦截触摸
                 temporarilyHideOverlayForPlayback(x, y, type, duration, endX, endY)
             }
-            }
             onUndoPoint = {
                 if (recordedPoints.isNotEmpty()) {
                     recordedPoints.removeAt(recordedPoints.size - 1)
