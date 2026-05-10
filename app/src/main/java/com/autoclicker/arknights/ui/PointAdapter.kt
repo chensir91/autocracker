@@ -57,6 +57,10 @@ class PointAdapter(
                 holder.tvType.text = "滑动"
                 holder.tvType.setTextColor(0xFFCE93D8.toInt())  // 淡紫色
             }
+            OperationType.LONG_PRESS_DRAG -> {
+                holder.tvType.text = "长按拖动"
+                holder.tvType.setTextColor(0xFFFFB74D.toInt())  // 淡橙色
+            }
         }
         
         // 设置坐标
@@ -65,6 +69,9 @@ class PointAdapter(
                 holder.tvCoords.text = "等待点"
             }
             OperationType.SWIPE -> {
+                holder.tvCoords.text = "(${point.x.toInt()},${point.y.toInt()})→(${point.endX.toInt()},${point.endY.toInt()})"
+            }
+            OperationType.LONG_PRESS_DRAG -> {
                 holder.tvCoords.text = "(${point.x.toInt()},${point.y.toInt()})→(${point.endX.toInt()},${point.endY.toInt()})"
             }
             else -> {

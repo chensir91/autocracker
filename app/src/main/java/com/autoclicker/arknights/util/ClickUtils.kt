@@ -159,24 +159,28 @@ object ClickUtils {
         startY: Float,
         endX: Float,
         endY: Float,
-        duration: Long = 500
+        holdDuration: Long = 500,
+        dragDuration: Long = 300
     ) {
-        // 将时间分配给按压和拖动
-        val pressDuration = (duration * 0.3).toLong().coerceAtLeast(100)  // 30%时间按压
-        val dragDuration = (duration * 0.7).toLong().coerceAtLeast(100)    // 70%时间拖动
-        
+        // 长按拖动：先长按再拖动到终点
+        // 使用单条stroke：从起点开始，持续holdDuration后继续移动到终点
         val path = Path()
         path.moveTo(startX, startY)
+        path.lineTo(startX, startY)  // 先停在原点（长按阶段）
         
-        // 使用willContinue创建长按部分
-        val pressStroke = GestureDescription.StrokeDescription(path, 0, pressDuration)
-        // 使用continueStroke创建拖动部分
-        val dragStroke = pressStroke.continueStroke(endX, endY, pressDuration, dragDuration)
+        // 使用 willContinue 模式
+        val holdStroke = GestureDescription.StrokeDescription(path, 0, holdDuration, true)
         
-        val gestureDescription = GestureDescription.Builder()
-            .addStroke(dragStroke)
+        // 继续stroke：从起点拖到终点
+        val dragPath = Path()
+        dragPath.moveTo(startX, startY)
+        dragPath.lineTo(endX, endY)
+        val fullStroke = holdStroke.continueStroke(dragPath, holdDuration, dragDuration, false)
+        
+        val gesture = GestureDescription.Builder()
+            .addStroke(fullStroke)
             .build()
         
-        service.dispatchGesture(gestureDescription, null, null)
+        service.dispatchGesture(gesture, null, null)
     }
 }

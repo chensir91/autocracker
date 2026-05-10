@@ -168,7 +168,7 @@ class MainActivity : AppCompatActivity() {
         val etDuration = dialogView.findViewById<EditText>(R.id.etDuration)
         
         // 设置操作类型选项
-        val types = arrayOf("点击", "长按", "等待", "滑动")
+        val types = arrayOf("点击", "长按", "等待", "滑动", "长按拖动")
         val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, types)
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         spinnerType.adapter = adapter
@@ -179,6 +179,7 @@ class MainActivity : AppCompatActivity() {
             OperationType.LONG_PRESS -> spinnerType.setSelection(1)
             OperationType.WAIT -> spinnerType.setSelection(2)
             OperationType.SWIPE -> spinnerType.setSelection(3)
+            OperationType.LONG_PRESS_DRAG -> spinnerType.setSelection(4)
         }
         
         etX.setText(point.x.toInt().toString())
@@ -212,7 +213,9 @@ class MainActivity : AppCompatActivity() {
                     0 -> OperationType.CLICK
                     1 -> OperationType.LONG_PRESS
                     2 -> OperationType.WAIT
-                    else -> OperationType.SWIPE
+                    3 -> OperationType.SWIPE
+                    4 -> OperationType.LONG_PRESS_DRAG
+                    else -> OperationType.CLICK
                 }
                 
                 val newX = etX.text.toString().toFloatOrNull() ?: point.x
