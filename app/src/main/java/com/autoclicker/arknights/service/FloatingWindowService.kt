@@ -903,54 +903,10 @@ class FloatingWindowService : Service() {
                 // WAIT 类型不需要回放，直接返回
                 if (type == OperationType.WAIT) return@lambda
                 
-                // 1. 让覆盖层穿透触摸，回放手势到游戏
-                makeOverlayNotTouchable()
-                
-                // 2. 延迟派发手势，确保覆盖层已切换为穿透模式
-                handler.postDelayed({
-                    val service = AutoClickAccessibilityService.instance
-                    if (service != null) {
-                        // 先尝试dispatchGesture
-                        when (type) {
-                            OperationType.CLICK -> {
-                                ClickUtils.click(service, x, y, duration = 50, callback = { success ->
-                                    if (!success) {
-                                        Log.w(TAG, "dispatchGesture cancelled, trying input tap fallback")
-                                        ClickUtils.clickByInput(x, y)
-                                    }
-                                })
-                            }
-                            OperationType.LONG_PRESS -> ClickUtils.longPress(service, x, y, duration = duration)
-                            OperationType.SWIPE -> ClickUtils.swipe(service, x, y, endX, endY, duration = duration)
-                            OperationType.LONG_PRESS_DRAG -> ClickUtils.longPressDrag(service, x, y, endX, endY, holdDuration = duration)
-                            OperationType.WAIT -> { }
-                        }
-                    } else {
-                        // 无障碍服务不可用时，使用input命令作为fallback
-                        Log.w(TAG, "AccessibilityService is null, using input command fallback")
-                        when (type) {
-                            OperationType.CLICK -> ClickUtils.clickByInput(x, y)
-                            OperationType.SWIPE -> ClickUtils.swipeByInput(x, y, endX, endY, duration)
-                            else -> {
-                                handler.post {
-                                    Toast.makeText(this@FloatingWindowService, "无障碍服务未连接，部分操作无法回放", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        }
-                    }
-                    
-                    // 3. 延迟恢复覆盖层为可触摸（给足时间让手势完成注入）
-                    val restoreDelay = when (type) {
-                        OperationType.CLICK -> 200L
-                        OperationType.LONG_PRESS -> duration + 200L
-                        OperationType.SWIPE -> duration + 200L
-                        OperationType.LONG_PRESS_DRAG -> duration + 500L
-                        OperationType.WAIT -> 0L
-                    }
-                    val runnable = Runnable { makeOverlayTouchable() }
-                    overlayRestoreRunnable = runnable
-                    handler.postDelayed(runnable, restoreDelay)
-                }, 200L)
+                // MIUI兼容方案：直接隐藏覆盖层→派发手势→重新显示覆盖层
+                // FLAG_NOT_TOUCHABLE在MIUI上可能不生效，覆盖层仍然拦截触摸
+                temporarilyHideOverlayForPlayback(x, y, type, duration, endX, endY)
+            }
             }
             onUndoPoint = {
                 if (recordedPoints.isNotEmpty()) {
@@ -994,6 +950,66 @@ class FloatingWindowService : Service() {
             }
             recordingOverlay = null
         }
+    }
+    
+    /**
+     * MIUI兼容方案：临时隐藏覆盖层来派发手势
+     * 在MIUI上FLAG_NOT_TOUCHABLE可能不生效，覆盖层仍然会拦截触摸
+     * 所以改为：removeView → dispatchGesture → 重新addView
+     */
+    private fun temporarilyHideOverlayForPlayback(x: Float, y: Float, type: OperationType, duration: Long, endX: Float, endY: Float) {
+        val overlay = recordingOverlay ?: return
+        val params = overlayParams ?: return
+        
+        // 1. 先从WindowManager移除覆盖层
+        try {
+            windowManager.removeView(overlay)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error removing overlay for playback", e)
+            // 移除失败，尝试FLAG_NOT_TOUCHABLE作为备选
+            makeOverlayNotTouchable()
+        }
+        
+        // 2. 延迟派发手势（等覆盖层完全移除）
+        val gestureDelay = 150L
+        handler.postDelayed({
+            val service = AutoClickAccessibilityService.instance
+            if (service != null) {
+                when (type) {
+                    OperationType.CLICK -> ClickUtils.click(service, x, y, duration = 50)
+                    OperationType.LONG_PRESS -> ClickUtils.longPress(service, x, y, duration = duration)
+                    OperationType.SWIPE -> ClickUtils.swipe(service, x, y, endX, endY, duration = duration)
+                    OperationType.LONG_PRESS_DRAG -> ClickUtils.longPressDrag(service, x, y, endX, endY, holdDuration = duration)
+                    OperationType.WAIT -> { }
+                }
+            } else {
+                // fallback到input命令
+                when (type) {
+                    OperationType.CLICK -> ClickUtils.clickByInput(x, y)
+                    OperationType.SWIPE -> ClickUtils.swipeByInput(x, y, endX, endY, duration)
+                    else -> {}
+                }
+            }
+            
+            // 3. 手势执行后延迟重新添加覆盖层
+            val restoreDelay = when (type) {
+                OperationType.CLICK -> 100L
+                OperationType.LONG_PRESS -> duration + 100L
+                OperationType.SWIPE -> duration + 100L
+                OperationType.LONG_PRESS_DRAG -> duration + 300L
+                OperationType.WAIT -> 0L
+            }
+            handler.postDelayed({
+                // 重新添加覆盖层
+                if (isRecording && recordingOverlay != null) {
+                    try {
+                        windowManager.addView(recordingOverlay, overlayParams)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error re-adding overlay after playback", e)
+                    }
+                }
+            }, restoreDelay)
+        }, gestureDelay)
     }
     
     /**
