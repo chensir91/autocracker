@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.graphics.Path
 import android.util.Log
+import android.util.Log
 import kotlin.random.Random
 
 /**
@@ -154,7 +155,29 @@ object ClickUtils {
      * @param endY 结束Y坐标
      * @param duration 手势持续时间（毫秒），包含按住和拖动
      */
-    fun longPressDrag(
+    /**
+     * 使用Runtime.exec执行input命令注入触摸事件（MIUI等系统dispatchGesture失败时的fallback）
+     */
+    fun clickByInput(x: Float, y: Float) {
+        try {
+            Runtime.getRuntime().exec(arrayOf("input", "tap", x.toInt().toString(), y.toInt().toString()))
+        } catch (e: Exception) {
+            Log.e("ClickUtils", "input tap failed", e)
+        }
+    }
+    
+    fun swipeByInput(startX: Float, startY: Float, endX: Float, endY: Float, duration: Long = 300) {
+        try {
+            Runtime.getRuntime().exec(arrayOf("input", "swipe", 
+                startX.toInt().toString(), startY.toInt().toString(),
+                endX.toInt().toString(), endY.toInt().toString(),
+                duration.toString()))
+        } catch (e: Exception) {
+            Log.e("ClickUtils", "input swipe failed", e)
+        }
+    }
+    
+        fun longPressDrag(
         service: AccessibilityService,
         startX: Float,
         startY: Float,
