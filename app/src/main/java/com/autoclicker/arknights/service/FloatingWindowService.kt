@@ -913,8 +913,8 @@ class FloatingWindowService : Service() {
                         // 先尝试dispatchGesture
                         when (type) {
                             OperationType.CLICK -> {
-                                ClickUtils.click(service, x, y, duration = 50, callback = object : android.accessibilityservice.AccessibilityService.GestureResultCallback() {
-                                    override fun onCancelled(gestureDescription: GestureDescription?) {
+                                ClickUtils.click(service, x, y, duration = 50, callback = { success ->
+                                    if (!success) {
                                         Log.w(TAG, "dispatchGesture cancelled, trying input tap fallback")
                                         ClickUtils.clickByInput(x, y)
                                     }
