@@ -162,23 +162,22 @@ object ClickUtils {
         holdDuration: Long = 500,
         dragDuration: Long = 300
     ) {
-        // 长按拖动：先长按再拖动到终点
-        // 使用单条stroke：从起点开始，持续holdDuration后继续移动到终点
+        // 长按拖动：先在起点长按，再拖动到终点
+        // 方案：用一条完整的path，从起点经中间停顿到终点
+        // Path: moveTo起点 -> 一小段位移模拟长按 -> lineTo终点
         val path = Path()
         path.moveTo(startX, startY)
-        path.lineTo(startX, startY)  // 先停在原点（长按阶段）
+        // 添加一个极小的位移（1像素），让系统认为是有效的stroke
+        path.lineTo(startX + 1f, startY)
+        // 再移回，然后拖到终点
+        path.lineTo(endX, endY)
         
-        // 使用 willContinue 模式
-        val holdStroke = GestureDescription.StrokeDescription(path, 0, holdDuration, true)
+        // 总时长 = 长按时间 + 拖动时间
+        val totalDuration = holdDuration + dragDuration
         
-        // 继续stroke：从起点拖到终点
-        val dragPath = Path()
-        dragPath.moveTo(startX, startY)
-        dragPath.lineTo(endX, endY)
-        val fullStroke = holdStroke.continueStroke(dragPath, holdDuration, dragDuration, false)
-        
+        val stroke = GestureDescription.StrokeDescription(path, 0, totalDuration)
         val gesture = GestureDescription.Builder()
-            .addStroke(fullStroke)
+            .addStroke(stroke)
             .build()
         
         service.dispatchGesture(gesture, null, null)
