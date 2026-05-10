@@ -686,7 +686,7 @@ class FloatingWindowService : Service() {
                             service = service,
                             x = point.x,
                             y = point.y,
-                            holdDuration = point.duration,
+                            duration = point.duration,
                             offsetRange = settings.offsetRange
                         )
                         totalClicks++
