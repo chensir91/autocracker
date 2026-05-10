@@ -527,24 +527,54 @@ class MainActivity : AppCompatActivity() {
             .setNegativeButton(getString(R.string.cancel), null)
             .create()
         
-        // 默认勾选：基建收菜、领取奖励、好友线索
-        val defaultSelected = setOf("base", "rewards", "friend")
+        // 默认勾选完整日常（即全选）
         val checkboxStates = mutableMapOf<String, Boolean>()
-        subSchemes.forEach { checkboxStates[it.id] = defaultSelected.contains(it.id) }
+        subSchemes.forEach { checkboxStates[it.id] = true }
         
         // 创建多选框列表
-        val checkboxes = mutableListOf<android.widget.CheckBox>()
+        val checkboxes = mutableMapOf<String, android.widget.CheckBox>()
         for (subScheme in subSchemes) {
             val checkBox = android.widget.CheckBox(this).apply {
                 text = "${subScheme.name}：${subScheme.desc}"
-                isChecked = checkboxStates[subScheme.id] ?: false
+                isChecked = true
                 setTextColor(getColor(R.color.text_primary))
             }
-            checkBox.setOnCheckedChangeListener { _, isChecked ->
-                checkboxStates[subScheme.id] = isChecked
-            }
-            checkboxes.add(checkBox)
+            checkboxes[subScheme.id] = checkBox
             layoutSubschemes.addView(checkBox)
+        }
+        
+        // 完整日常=全选/取消全选
+        val completeCb = checkboxes["complete"]!!
+        val individualIds = listOf("base", "rewards", "credit", "farm16", "friend")
+        
+        fun updateFromComplete(isChecked: Boolean) {
+            for (id in individualIds) {
+                checkboxes[id]?.isChecked = isChecked
+                checkboxStates[id] = isChecked
+            }
+        }
+        
+        fun updateCompleteFromIndividual() {
+            val allChecked = individualIds.all { checkboxStates[it] == true }
+            completeCb.setOnCheckedChangeListener(null)
+            completeCb.isChecked = allChecked
+            checkboxStates["complete"] = allChecked
+            completeCb.setOnCheckedChangeListener { _, checked ->
+                checkboxStates["complete"] = checked
+                updateFromComplete(checked)
+            }
+        }
+        
+        completeCb.setOnCheckedChangeListener { _, isChecked ->
+            checkboxStates["complete"] = isChecked
+            updateFromComplete(isChecked)
+        }
+        
+        for (id in individualIds) {
+            checkboxes[id]?.setOnCheckedChangeListener { _, isChecked ->
+                checkboxStates[id] = isChecked
+                updateCompleteFromIndividual()
+            }
         }
         
         // 我的方案适配器

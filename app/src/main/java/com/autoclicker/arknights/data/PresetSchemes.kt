@@ -78,22 +78,30 @@ object PresetSchemes {
         SubScheme("rewards", "领取奖励", "邮件+任务奖励"),
         SubScheme("credit", "信用商店", "购买打折物品"),
         SubScheme("farm16", "刷1-6", "物资筹备LS-6"),
-        SubScheme("friend", "好友线索", "线索交流")
+        SubScheme("friend", "好友线索", "线索交流"),
+        SubScheme("complete", "完整日常", "一键全搞定")
     )
     
     /**
      * 根据勾选的子方案ID列表，拼接生成日常方案
      */
     fun buildDailyScheme(selectedIds: List<String>, targetWidth: Int, targetHeight: Int): ClickScheme {
+        // 如果选了完整日常，展开为所有5个子方案
+        val expandedIds = if (selectedIds.contains("complete")) {
+            listOf("base", "rewards", "credit", "farm16", "friend")
+        } else {
+            selectedIds
+        }
         val points = mutableListOf<ClickPoint>()
         var order = 1
-        for (id in selectedIds) {
+        for (id in expandedIds) {
             val scheme = when (id) {
                 "base" -> getBaseCollect(targetWidth, targetHeight)
                 "rewards" -> getCollectRewards(targetWidth, targetHeight)
                 "credit" -> getCreditStore(targetWidth, targetHeight)
                 "farm16" -> getFarm16(targetWidth, targetHeight)
                 "friend" -> getFriendClue(targetWidth, targetHeight)
+                "complete" -> null  // 完整日常通过全选其他子方案实现，不单独构建
                 else -> null
             }
             if (scheme != null) {
