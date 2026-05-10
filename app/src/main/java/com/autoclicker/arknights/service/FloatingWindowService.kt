@@ -897,6 +897,10 @@ class FloatingWindowService : Service() {
                 
                 // 2. 延迟派发手势，确保当前触摸事件处理完毕且覆盖层已完全移除
                 handler.postDelayed({
+                    // 取消 hideRecordingOverlayTemporarily 设置的安全兜底 Runnable，避免重复 addView
+                    pendingRestoreRunnable?.let { handler.removeCallbacks(it) }
+                    pendingRestoreRunnable = null
+                    
                     val service = AutoClickAccessibilityService.instance
                     if (service != null) {
                         when (type) {
@@ -992,6 +996,11 @@ class FloatingWindowService : Service() {
         pendingRestoreRunnable = null
         if (!isRecording) return  // 如果已经停止录制，不恢复
         recordingOverlay?.let {
+            // 检查 view 是否已经 attach 到 window，避免重复 addView 崩溃
+            if (it.isAttachedToWindow) {
+                Log.w(TAG, "Recording overlay already attached, skip addView")
+                return
+            }
             try {
                 windowManager.addView(it, overlayParams)
             } catch (e: Exception) {
