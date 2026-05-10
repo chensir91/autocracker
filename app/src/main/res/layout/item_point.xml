@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_point_item"
+    android:orientation="horizontal"
+    android:padding="12dp"
+    android:layout_marginBottom="8dp"
+    android:gravity="center_vertical">
+
+    <!-- 序号 -->
+    <TextView
+        android:id="@+id/tvOrder"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:background="@drawable/bg_order_badge"
+        android:gravity="center"
+        android:text="1"
+        android:textColor="@color/text_on_primary"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+
+    <!-- 类型标签 -->
+    <TextView
+        android:id="@+id/tvType"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:text="点击"
+        android:textColor="@color/primary"
+        android:textSize="14sp" />
+
+    <!-- 坐标信息 -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tvCoords"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="X: 540, Y: 960"
+            android:textColor="@color/text_primary"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/tvDuration"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="时长: 500ms"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <!-- 编辑按钮 -->
+    <ImageButton
+        android:id="@+id/btnEdit"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:background="@drawable/bg_floating_button"
+        android:contentDescription="编辑"
+        android:padding="6dp"
+        android:src="@android:drawable/ic_menu_edit"
+        app:tint="@color/primary" />
+
+    <!-- 删除按钮 -->
+    <ImageButton
+        android:id="@+id/btnDelete"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_marginStart="8dp"
+        android:background="@drawable/bg_floating_button"
+        android:contentDescription="删除"
+        android:padding="6dp"
+        android:src="@android:drawable/ic_menu_delete"
+        app:tint="@color/status_recording" />
+
+</LinearLayout>

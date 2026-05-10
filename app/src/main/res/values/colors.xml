@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 主色调 - 清新绿色 -->
+    <color name="primary">#4CAF50</color>
+    <color name="primary_dark">#388E3C</color>
+    <color name="primary_variant">#81C784</color>
+    
+    <!-- 辅助色 - 浅绿系 -->
+    <color name="secondary">#66BB6A</color>
+    <color name="secondary_variant">#43A047</color>
+    
+    <!-- 强调色 - 深绿 -->
+    <color name="accent">#2E7D32</color>
+    
+    <!-- 状态色 -->
+    <color name="status_recording">#E53935</color>
+    <color name="status_running">#4CAF50</color>
+    <color name="status_paused">#FFC107</color>
+    <color name="status_idle">#9E9E9E</color>
+    
+    <!-- 背景色 - 白色系 -->
+    <color name="background">#FAFAFA</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="floating_window_bg">#F0FFFFFF</color>
+    <color name="floating_button_bg">#FFFFFFFF</color>
+    
+    <!-- 文字色 -->
+    <color name="text_primary">#212121</color>
+    <color name="text_secondary">#757575</color>
+    <color name="text_on_primary">#FFFFFF</color>
+    
+    <!-- 浅绿辅助色 -->
+    <color name="light_green">#E8F5E9</color>
+    <color name="lighter_green">#C8E6C9</color>
+    
+    <!-- 录制点位颜色 -->
+    <color name="point_marker">#4CAF50</color>
+    <color name="point_number">#FFFFFF</color>
+    <color name="ic_launcher_background">#FFFFFF</color>
+</resources>

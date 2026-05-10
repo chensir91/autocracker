@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">丛雨工具箱</string>
+    <string name="app_name_short">工具箱</string>
+    
+    <!-- 无障碍服务描述 -->
+    <string name="accessibility_service_description">本服务用于自动点击屏幕，帮助您完成重复性点击操作。请在设置中开启此服务。</string>
+    
+    <!-- 主界面 -->
+    <string name="btn_start">开始</string>
+    <string name="btn_pause">暂停</string>
+    <string name="btn_stop">停止</string>
+    <string name="btn_settings">设置</string>
+    <string name="btn_record">录制</string>
+    <string name="btn_save">保存方案</string>
+    <string name="btn_load">加载方案</string>
+    <string name="btn_save_settings">保存设置</string>
+    
+    <!-- 状态 -->
+    <string name="status_idle">待机中</string>
+    <string name="status_recording">录制模式</string>
+    <string name="status_running">运行中</string>
+    <string name="status_paused">已暂停</string>
+    
+    <!-- 录制相关 -->
+    <string name="recording_hint">点击屏幕录制点位</string>
+    <string name="point_recorded">已录制 %d 个点位</string>
+    <string name="recording_complete">录制完成</string>
+    <string name="no_points_recorded">请先录制点位</string>
+    
+    <!-- 操作类型 -->
+    <string name="op_type_click">点击</string>
+    <string name="op_type_long_press">长按</string>
+    <string name="op_type_wait">等待</string>
+    <string name="op_type_swipe">滑动</string>
+    
+    <!-- 设置页面 -->
+    <string name="settings_title">设置</string>
+    <string name="settings_interval_title">点击间隔</string>
+    <string name="settings_interval_summary">随机间隔范围：%1$.1fs ~ %2$.1fs</string>
+    <string name="settings_min_interval">最小间隔（秒）</string>
+    <string name="settings_max_interval">最大间隔（秒）</string>
+    <string name="settings_loop_count">循环次数</string>
+    <string name="settings_infinite_loop">无限循环</string>
+    <string name="settings_loop_times">次</string>
+    
+    <!-- 安全性设置 -->
+    <string name="settings_security_title">安全性设置</string>
+    <string name="settings_offset_range">点击位置随机偏移</string>
+    <string name="settings_offset_summary">每次点击在指定范围内随机偏移位置</string>
+    <string name="settings_pause_frequency">偶发微停顿频率</string>
+    <string name="settings_pause_frequency_summary">每隔一定次数点击后自动暂停一段时间</string>
+    <string name="settings_pause_duration">停顿时长</string>
+    
+    <!-- 操作默认值 -->
+    <string name="settings_long_press_duration">长按时长</string>
+    <string name="settings_wait_duration">等待时长</string>
+    
+    <!-- 方案管理 -->
+    <string name="scheme_name_hint">方案名称</string>
+    <string name="scheme_save_success">方案已保存</string>
+    <string name="scheme_load_success">方案已加载</string>
+    <string name="scheme_delete_success">方案已删除</string>
+    <string name="scheme_empty">暂无保存的方案</string>
+    
+    <!-- 通知 -->
+    <string name="notification_channel_name">连点器服务</string>
+    <string name="notification_channel_desc">保持连点器在后台运行</string>
+    <string name="notification_title">连点器运行中</string>
+    <string name="notification_content">点击停止服务</string>
+    
+    <!-- 权限提示 -->
+    <string name="permission_required">需要权限</string>
+    <string name="accessibility_permission_hint">请开启无障碍服务以使用自动点击功能</string>
+    <string name="overlay_permission_hint">请开启悬浮窗权限以显示控制面板</string>
+    
+    <!-- 其他 -->
+    <string name="confirm">确定</string>
+    <string name="cancel">取消</string>
+    <string name="delete">删除</string>
+    <string name="click_to_add_point">点击此处添加点位</string>
+    
+    <!-- 点位编辑 -->
+    <string name="edit_point">编辑点位</string>
+    <string name="point_list">点位列表</string>
+    <string name="no_points_hint">暂无点位，点击录制或加载方案</string>
+    <string name="point_updated">点位已更新</string>
+    <string name="point_deleted">点位已删除</string>
+    <string name="confirm_delete">确定要删除这个点位吗？</string>
+    
+    <!-- 撤销 -->
+    <string name="undo_last_point">撤销</string>
+    <string name="no_point_to_undo">没有可撤销的点位</string>
+    <string name="point_undone">已撤销最后一个点位</string>
+    
+    <!-- 完成通知 -->
+    <string name="task_completed">连点器任务完成</string>
+    <string name="task_completed_detail">共执行 %d 次循环</string>
+</resources>
