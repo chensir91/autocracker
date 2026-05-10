@@ -89,8 +89,6 @@ class FloatingWindowService : Service() {
     var onPointsChanged: ((Int) -> Unit)? = null
     var onRecordingPoint: ((ClickPoint) -> Unit)? = null
     
-    // 录制回放相关：防止套娃
-    private var pendingRestoreRunnable: Runnable? = null
     
     // 状态枚举
     enum class State {
@@ -493,9 +491,7 @@ class FloatingWindowService : Service() {
      */
     fun finishRecording() {
         isRecording = false
-        // 取消待恢复覆盖层的回调
-        pendingRestoreRunnable?.let { handler.removeCallbacks(it) }
-        pendingRestoreRunnable = null
+        makeOverlayTouchable()
         hideRecordingOverlay()
         updateButtonStates()
         onStateChanged?.invoke(State.IDLE)
@@ -786,9 +782,6 @@ class FloatingWindowService : Service() {
         isRunning = false
         isPaused = false
         currentStep = 0
-        // 取消待恢复覆盖层的回调
-        pendingRestoreRunnable?.let { handler.removeCallbacks(it) }
-        pendingRestoreRunnable = null
         clickThread?.interrupt()
         clickThread = null
         
@@ -892,15 +885,11 @@ class FloatingWindowService : Service() {
                 // WAIT 类型不需要回放，直接返回
                 if (type == OperationType.WAIT) return@lambda
                 
-                // 1. 先隐藏覆盖层，防止回放时被捕获（避免套娃）
-                hideRecordingOverlayTemporarily()
+                // 1. 让覆盖层穿透触摸，回放手势到游戏
+                makeOverlayNotTouchable()
                 
-                // 2. 延迟派发手势，确保当前触摸事件处理完毕且覆盖层已完全移除
+                // 2. 延迟派发手势，确保覆盖层已切换为穿透模式
                 handler.postDelayed({
-                    // 取消 hideRecordingOverlayTemporarily 设置的安全兜底 Runnable，避免重复 addView
-                    pendingRestoreRunnable?.let { handler.removeCallbacks(it) }
-                    pendingRestoreRunnable = null
-                    
                     val service = AutoClickAccessibilityService.instance
                     if (service != null) {
                         when (type) {
@@ -911,16 +900,17 @@ class FloatingWindowService : Service() {
                         }
                     }
                     
-                    // 3. 不管手势是否成功，延迟恢复覆盖层（不依赖回调）
+                    // 3. 延迟恢复覆盖层为可触摸
                     val restoreDelay = when (type) {
-                        OperationType.CLICK -> 500L              // 点击很快，500ms缓冲
-                        OperationType.LONG_PRESS -> duration + 500L  // 长按要等操作完成
-                        OperationType.SWIPE -> duration + 500L       // 滑动要等操作完成
+                        OperationType.CLICK -> 500L
+                        OperationType.LONG_PRESS -> duration + 500L
+                        OperationType.SWIPE -> duration + 500L
                         OperationType.WAIT -> 0L
                     }
-                    pendingRestoreRunnable = Runnable { showRecordingOverlayAgain() }
-                    handler.postDelayed(pendingRestoreRunnable!!, restoreDelay)
-                }, 100L)  // 100ms延迟确保触摸事件处理完毕
+                    handler.postDelayed({
+                        makeOverlayTouchable()
+                    }, restoreDelay)
+                }, 100L)
             }
             onUndoPoint = {
                 if (recordedPoints.isNotEmpty()) {
@@ -967,48 +957,42 @@ class FloatingWindowService : Service() {
     }
     
     /**
-     * 临时隐藏录制覆盖层（用于回放时避免套娃）
-     * 注意：不置空 recordingOverlay，因为之后还要恢复
+     * 让录制覆盖层暂时不可触摸（手势穿透到下层）
+     * 用于回放时避免覆盖层捕获模拟的触摸事件
      */
-    private fun hideRecordingOverlayTemporarily() {
-        // 取消之前等待恢复的回调（如果有的话）
-        pendingRestoreRunnable?.let { handler.removeCallbacks(it) }
-        pendingRestoreRunnable = null
-        
+    private fun makeOverlayNotTouchable() {
         recordingOverlay?.let {
+            if (!it.isAttachedToWindow) return
             try {
-                windowManager.removeView(it)
+                val params = overlayParams?.apply {
+                    flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                } ?: return
+                overlayParams = params
+                windowManager.updateViewLayout(it, params)
             } catch (e: Exception) {
-                Log.e(TAG, "Error temporarily hiding recording overlay", e)
+                Log.e(TAG, "Error making overlay not touchable", e)
             }
         }
-        // 不置空 recordingOverlay，保留引用以便恢复
-        
-        // 安全兜底：3秒后如果覆盖层还没恢复，强制恢复
-        pendingRestoreRunnable = Runnable { showRecordingOverlayAgain() }
-        handler.postDelayed(pendingRestoreRunnable!!, 3000L)
     }
     
     /**
-     * 恢复录制覆盖层
+     * 恢复录制覆盖层为可触摸
      */
-    private fun showRecordingOverlayAgain() {
-        pendingRestoreRunnable = null
-        if (!isRecording) return  // 如果已经停止录制，不恢复
+    private fun makeOverlayTouchable() {
         recordingOverlay?.let {
-            // 检查 view 是否已经 attach 到 window，避免重复 addView 崩溃
-            if (it.isAttachedToWindow) {
-                Log.w(TAG, "Recording overlay already attached, skip addView")
-                return
-            }
+            if (!it.isAttachedToWindow) return
             try {
-                windowManager.addView(it, overlayParams)
+                val params = overlayParams?.apply {
+                    flags = flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+                } ?: return
+                overlayParams = params
+                windowManager.updateViewLayout(it, params)
             } catch (e: Exception) {
-                Log.e(TAG, "Error restoring recording overlay", e)
+                Log.e(TAG, "Error making overlay touchable", e)
             }
         }
     }
-    
+            
     /**
      * 刷新设置
      */
