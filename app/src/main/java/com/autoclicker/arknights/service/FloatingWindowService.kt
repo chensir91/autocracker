@@ -71,6 +71,7 @@ class FloatingWindowService : Service() {
     private var isRunning = false
     private var isPaused = false
     private var isMinimized = false
+    private var isMiniHidden = false  // 最小化悬浮窗是否被隐藏到边缘
     private val recordedPoints = mutableListOf<ClickPoint>()
     private var clickThread: Thread? = null
     
@@ -148,7 +149,7 @@ class FloatingWindowService : Service() {
             Log.e(TAG, "Error removing floating view", e)
         }
         try {
-            if (isMinimized) {
+            if (isMinimized || isMiniHidden) {
                 windowManager.removeView(miniFloatView)
             }
         } catch (e: Exception) {
@@ -353,10 +354,46 @@ class FloatingWindowService : Service() {
             miniLayoutParams?.let { windowManager.updateViewLayout(miniFloatView, it) }
         }
         draggableContainer.onDragEnd = {
-            // 拖动结束
+            // 检查是否拖到边缘隐藏
+            miniLayoutParams?.let { params ->
+                val screenWidth = resources.displayMetrics.widthPixels
+                val miniX = params.x
+                if (miniX < 50 || miniX > screenWidth - 50) {
+                    hideMiniWindow()
+                }
+            }
         }
         draggableContainer.onTap = {
             restoreWindow()
+        }
+    }
+    
+    /**
+     * 隐藏最小化悬浮窗（拖到边缘时）
+     */
+    private fun hideMiniWindow() {
+        try {
+            windowManager.removeView(miniFloatView)
+        } catch (e: Exception) {
+            Log.w(TAG, "Mini view may already be removed", e)
+        }
+        isMiniHidden = true
+    }
+    
+    /**
+     * 如果最小化悬浮窗被隐藏则重新显示
+     */
+    fun showMiniWindowIfHidden() {
+        if (isMiniHidden) {
+            miniLayoutParams?.let { params ->
+                params.x = 100  // 默认靠左位置
+                try {
+                    windowManager.addView(miniFloatView, params)
+                    isMiniHidden = false
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error showing mini window", e)
+                }
+            }
         }
     }
     
@@ -392,6 +429,10 @@ class FloatingWindowService : Service() {
      */
     private fun restoreWindow() {
         try {
+            // 如果最小化悬浮窗被隐藏到边缘，先重新显示
+            if (isMiniHidden) {
+                showMiniWindowIfHidden()
+            }
             // 移除迷你悬浮窗
             try {
                 windowManager.removeView(miniFloatView)
@@ -970,12 +1011,12 @@ class FloatingWindowService : Service() {
         }
         
         // 2. 延迟派发手势（等覆盖层完全移除）
-        val gestureDelay = 150L
+        val gestureDelay = 50L
         handler.postDelayed({
             val service = AutoClickAccessibilityService.instance
             if (service != null) {
                 when (type) {
-                    OperationType.CLICK -> ClickUtils.click(service, x, y, duration = 50)
+                    OperationType.CLICK -> ClickUtils.click(service, x, y, duration = 1)
                     OperationType.LONG_PRESS -> ClickUtils.longPress(service, x, y, duration = duration)
                     OperationType.SWIPE -> ClickUtils.swipe(service, x, y, endX, endY, duration = duration)
                     OperationType.LONG_PRESS_DRAG -> ClickUtils.longPressDrag(service, x, y, endX, endY, holdDuration = duration)
@@ -992,10 +1033,10 @@ class FloatingWindowService : Service() {
             
             // 3. 手势执行后延迟重新添加覆盖层
             val restoreDelay = when (type) {
-                OperationType.CLICK -> 100L
-                OperationType.LONG_PRESS -> duration + 100L
-                OperationType.SWIPE -> duration + 100L
-                OperationType.LONG_PRESS_DRAG -> duration + 300L
+                OperationType.CLICK -> 50L
+                OperationType.LONG_PRESS -> duration + 50L
+                OperationType.SWIPE -> duration + 50L
+                OperationType.LONG_PRESS_DRAG -> duration + 100L
                 OperationType.WAIT -> 0L
             }
             handler.postDelayed({
@@ -1008,7 +1049,7 @@ class FloatingWindowService : Service() {
                     }
                 }
             }, restoreDelay)
-        }, gestureDelay)
+        }, 50L)
     }
     
     /**

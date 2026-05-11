@@ -107,6 +107,8 @@ class MainActivity : AppCompatActivity() {
         updatePermissionHint()
         // 刷新设置
         floatingService?.refreshSettings()
+        // 如果最小化悬浮窗被隐藏则重新显示
+        floatingService?.showMiniWindowIfHidden()
         // 刷新点位列表
         refreshPointList()
     }

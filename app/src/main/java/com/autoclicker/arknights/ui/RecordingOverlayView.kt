@@ -27,6 +27,7 @@ class RecordingOverlayView(context: Context) : View(context) {
     // 覆盖层在屏幕上的偏移量（用于坐标转换）
     private var screenOffsetX = 0
     private var screenOffsetY = 0
+    private var statusBarHeight = 0  // 状态栏高度，用于修正某些设备上getLocationOnScreen返回0的问题
     
     // 半透明淡绿色填充
     private val circlePaint = Paint().apply {
@@ -205,6 +206,14 @@ class RecordingOverlayView(context: Context) : View(context) {
         getLocationOnScreen(location)
         screenOffsetX = location[0]
         screenOffsetY = location[1]
+        
+        // 修复某些设备上getLocationOnScreen返回0但view实际从状态栏下方开始的问题
+        if (screenOffsetY == 0) {
+            val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
+            if (resourceId > 0) {
+                statusBarHeight = resources.getDimensionPixelSize(resourceId)
+            }
+        }
     }
     
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -226,7 +235,7 @@ class RecordingOverlayView(context: Context) : View(context) {
         
         // 屏幕坐标转View坐标的辅助函数
         val drawX = { px: Float -> px - screenOffsetX }
-        val drawY = { py: Float -> py - screenOffsetY }
+        val drawY = { py: Float -> py - screenOffsetY - statusBarHeight }
         
         // 绘制所有已录制的点位
         for (point in recordedPoints) {
