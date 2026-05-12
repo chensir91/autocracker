@@ -11,8 +11,8 @@ android {
         applicationId "com.autoclicker.arknights"
         minSdk 24
         targetSdk 34
-        versionCode 4
-        versionName "1.3.0"
+        versionCode 5
+        versionName "2.0.0"
     }
 
     signingConfigs {
@@ -56,4 +56,6 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.preference:preference-ktx:1.2.1'
     implementation 'com.google.code.gson:gson:2.10.1'
+    // ML Kit 中文OCR（为后续公招OCR准备）
+    implementation 'com.google.mlkit:text-recognition-chinese:16.0.1'
 }

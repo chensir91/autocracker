@@ -3,14 +3,16 @@ package com.autoclicker.arknights.data
 import java.io.Serializable
 
 /**
- * 操作类型枚举
+ * 操作类型枚举 v2.0
  */
 enum class OperationType {
     CLICK,      // 普通点击
     LONG_PRESS, // 长按
     WAIT,       // 等待
     SWIPE,      // 滑动
-    LONG_PRESS_DRAG  // 长按拖动
+    LONG_PRESS_DRAG,  // 长按拖动
+    WAIT_PIXEL,      // 等待直到指定坐标像素颜色匹配（截图识别）
+    MULTI_CLICK       // 在同一位置连续点击多次
 }
 
 /**
@@ -22,6 +24,12 @@ enum class OperationType {
  * @param duration 时长参数（长按时为按住毫秒数，等待时为等待秒数*1000，滑动时为滑动毫秒数）
  * @param endX 滑动终点X坐标
  * @param endY 滑动终点Y坐标
+ * @param targetColor WAIT_PIXEL 目标颜色 (ARGB)
+ * @param colorTolerance 颜色容差 (0-255 per channel)
+ * @param timeoutMs WAIT_PIXEL 最大等待时间
+ * @param checkIntervalMs WAIT_PIXEL 检查间隔
+ * @param repeatCount MULTI_CLICK 重复次数
+ * @param repeatIntervalMs MULTI_CLICK 重复间隔
  */
 data class ClickPoint(
     val x: Float,
@@ -30,7 +38,15 @@ data class ClickPoint(
     val type: OperationType = OperationType.CLICK,
     val duration: Long = 0,  // 长按时为毫秒数，等待时为毫秒数，滑动时为毫秒数
     val endX: Float = 0f,    // 滑动终点X
-    val endY: Float = 0f     // 滑动终点Y
+    val endY: Float = 0f,     // 滑动终点Y
+    // WAIT_PIXEL 相关参数
+    val targetColor: Int = 0,          // 目标颜色 (ARGB)
+    val colorTolerance: Int = 30,      // 颜色容差 (0-255 per channel)
+    val timeoutMs: Long = 30000,       // 最大等待时间
+    val checkIntervalMs: Long = 500,   // 检查间隔
+    // MULTI_CLICK 相关参数
+    val repeatCount: Int = 1,          // 重复次数
+    val repeatIntervalMs: Long = 300   // 重复间隔
 ) : Serializable
 
 /**
@@ -46,7 +62,7 @@ data class ClickScheme(
 ) : Serializable
 
 /**
- * 应用设置 v1.3.0
+ * 应用设置 v2.0.0
  * @param minIntervalMs 最小点击间隔（毫秒）
  * @param maxIntervalMs 最大点击间隔（毫秒）
  * @param loopCount 循环次数，-1表示无限
@@ -59,6 +75,7 @@ data class ClickScheme(
  * @param waitDuration 默认等待时长（毫秒）
  * @param screenWidth 屏幕分辨率宽度
  * @param screenHeight 屏幕分辨率高度
+ * @param waitSpeed 等待速度模式 ("fast" 或 "normal")
  */
 data class AppSettings(
     val minIntervalMs: Int = 100,
@@ -75,5 +92,7 @@ data class AppSettings(
     val waitDuration: Int = 1000,       // 默认等待1秒
     // 屏幕分辨率
     val screenWidth: Int = 2800,        // 默认2800x1260
-    val screenHeight: Int = 1260
+    val screenHeight: Int = 1260,
+    // 速度模式: "fast" 或 "normal"，影响WAIT_PIXEL的等待时长倍率
+    val waitSpeed: String = "normal"
 ) : Serializable

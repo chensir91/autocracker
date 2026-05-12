@@ -40,6 +40,7 @@ import com.autoclicker.arknights.ui.DraggableFrameLayout
 import com.autoclicker.arknights.ui.MainActivity
 import com.autoclicker.arknights.ui.RecordingOverlayView
 import com.autoclicker.arknights.util.ClickUtils
+import com.autoclicker.arknights.util.ScreenshotHelper
 import kotlin.random.Random
 
 /**
@@ -771,6 +772,29 @@ class FloatingWindowService : Service() {
                         )
                         totalClicks++
                         clickCountSinceLastPause++
+                    }
+                    OperationType.WAIT_PIXEL -> {
+                        // 等待像素颜色匹配（截图识别）
+                        val matched = ScreenshotHelper.waitForPixel(
+                            service, point.x.toInt(), point.y.toInt(),
+                            point.targetColor, point.timeoutMs, point.checkIntervalMs, point.colorTolerance
+                        )
+                        if (!matched) {
+                            Log.w(TAG, "WAIT_PIXEL timeout at (${point.x.toInt()},${point.y.toInt()}), continuing anyway")
+                        }
+                    }
+                    OperationType.MULTI_CLICK -> {
+                        // 在同一位置连续点击多次
+                        for (i in 0 until point.repeatCount) {
+                            if (!isRunning || isPaused) break
+                            showClickFeedback(point.x, point.y)
+                            ClickUtils.click(service, point.x, point.y, offsetRange = settings.offsetRange)
+                            totalClicks++
+                            clickCountSinceLastPause++
+                            if (i < point.repeatCount - 1) {
+                                try { Thread.sleep(point.repeatIntervalMs) } catch (_: InterruptedException) { break }
+                            }
+                        }
                     }
                 }
                 

@@ -37,7 +37,7 @@
             android:text="我的方案" />
     </com.google.android.material.tabs.TabLayout>
 
-    <!-- 预设方案：日常方案多选列表 -->
+    <!-- 预设方案：完整日常 v2.0 -->
     <LinearLayout
         android:id="@+id/layoutDailyScheme"
         android:layout_width="match_parent"
@@ -46,27 +46,82 @@
         android:layout_marginTop="12dp"
         android:visibility="visible">
         
+        <!-- 完整日常方案 -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="选择子方案（可多选）"
+            android:text="完整日常 v2.0"
+            android:textColor="@color/text_primary"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+        
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="基建收菜 → 线索交流 → 信用商店+公招 → 刷1-7 → 领取任务"
             android:textColor="@color/text_secondary"
             android:textSize="12sp" />
         
-        <!-- 多选框列表将由代码动态生成 -->
-        <LinearLayout
-            android:id="@+id/layoutSubschemes"
+        <!-- 速度模式选择 -->
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_marginTop="8dp" />
+            android:layout_marginTop="12dp"
+            android:text="速度模式"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp" />
+        
+        <RadioGroup
+            android:id="@+id/rgSpeedMode"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="4dp">
+            
+            <RadioButton
+                android:id="@+id/rbNormal"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="标准模式"
+                android:textColor="@color/text_primary"
+                android:checked="true" />
+            
+            <RadioButton
+                android:id="@+id/rbFast"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="快速模式"
+                android:textColor="@color/text_primary" />
+        </RadioGroup>
+        
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="快速模式会缩短截图检测间隔，提高执行速度"
+            android:textColor="@color/text_hint"
+            android:textSize="10sp" />
+        
+        <!-- 提示信息 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:padding="8dp"
+            android:background="#FFF3E0"
+            android:text="注意：坐标和颜色为占位值，需要在设备上校准"
+            android:textColor="#E65100"
+            android:textSize="11sp" />
         
         <Button
             android:id="@+id/btnLoadDailyScheme"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:text="加载日常方案"
+            android:text="加载完整日常"
             android:textColor="@android:color/white"
             android:backgroundTint="@color/primary" />
     </LinearLayout>
