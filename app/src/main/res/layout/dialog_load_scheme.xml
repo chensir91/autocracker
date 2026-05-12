@@ -102,7 +102,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:text="快速模式会缩短截图检测间隔，提高执行速度"
-            android:textColor="@color/text_hint"
+            android:textColor="@color/text_secondary"
             android:textSize="10sp" />
         
         <!-- 提示信息 -->
