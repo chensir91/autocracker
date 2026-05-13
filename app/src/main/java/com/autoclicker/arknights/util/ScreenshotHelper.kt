@@ -1,67 +1,94 @@
 package com.autoclicker.arknights.util
 
 import android.accessibilityservice.AccessibilityService
-import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
-import android.hardware.display.DisplayManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import android.view.WindowManager
-import androidx.annotation.RequiresApi
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 
 /**
  * 截图辅助工具 v2.0
- * 提供截图和像素颜色检测功能
- * 注意：takeScreenshot API 需要 API 30+ (Android 11+)
- * 低于 API 30 的设备将返回 null，调用方应 fallback 到固定等待
+ * 使用反射调用 AccessibilityService.takeScreenshot（该API在部分SDK版本中为@hide）
+ * 需要 API 21+ 运行，API 30+ 才真正支持截图
  */
 object ScreenshotHelper {
     private const val TAG = "ScreenshotHelper"
     
     val isSupported: Boolean
-        get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+        get() = Build.VERSION.SDK_INT >= 30
     
     /**
-     * 截取屏幕
-     * 需要 API 30+ (Android 11+)
+     * 截取屏幕（通过反射调用隐藏API）
      */
     fun captureScreen(service: AccessibilityService): Bitmap? {
-        if (!isSupported) return null
+        if (Build.VERSION.SDK_INT < 30) return null
         return try {
             var resultBitmap: Bitmap? = null
             val latch = CountDownLatch(1)
             
-            val displayId = service.display?.displayId ?: 0
+            // 获取 displayId
+            val displayId = try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    service.display?.displayId ?: 0
+                } else {
+                    0
+                }
+            } catch (e: Exception) {
+                0
+            }
             
-            service.takeScreenshot(
-                displayId,
-                Handler(Looper.getMainLooper())::post,
-                object : AccessibilityService.TakeScreenshotCallback {
-                    override fun onSuccess(screenshot: AccessibilityService.Screenshot) {
+            // 通过反射获取 TakeScreenshotCallback 类和 Screenshot 类
+            val callbackClass = Class.forName("android.accessibilityservice.AccessibilityService\$TakeScreenshotCallback")
+            val screenshotClass = Class.forName("android.accessibilityservice.AccessibilityService\$Screenshot")
+            
+            // 创建 callback 代理
+            val callback = java.lang.reflect.Proxy.newProxyInstance(
+                callbackClass.classLoader,
+                arrayOf(callbackClass)
+            ) { _, method, args ->
+                when (method.name) {
+                    "onSuccess" -> {
                         try {
-                            val hardwareBuffer = screenshot.hardwareBuffer
-                            resultBitmap = Bitmap.wrapHardwareBuffer(hardwareBuffer, null)
-                                ?.copy(Bitmap.Config.ARGB_8888, false)
-                            hardwareBuffer.close()
-                            screenshot.close()
+                            val screenshot = args[0]
+                            val hardwareBuffer = screenshotClass.getMethod("getHardwareBuffer").invoke(screenshot) as? android.hardware.HardwareBuffer
+                            if (hardwareBuffer != null) {
+                                resultBitmap = Bitmap.wrapHardwareBuffer(hardwareBuffer, null)
+                                    ?.copy(Bitmap.Config.ARGB_8888, false)
+                                hardwareBuffer.close()
+                            }
+                            screenshotClass.getMethod("close").invoke(screenshot)
                         } catch (e: Exception) {
                             Log.e(TAG, "Error processing screenshot", e)
                         }
                         latch.countDown()
+                        null
                     }
-                    
-                    override fun onFailure(errorCode: Int) {
+                    "onFailure" -> {
+                        val errorCode = args[0] as? Int ?: -1
                         Log.e(TAG, "takeScreenshot failed: $errorCode")
                         latch.countDown()
+                        null
                     }
+                    else -> null
                 }
+            }
+            
+            // 调用 takeScreenshot 方法
+            val takeScreenshotMethod = AccessibilityService::class.java.getMethod(
+                "takeScreenshot",
+                Int::class.javaPrimitiveType,
+                java.util.concurrent.Executor::class.java,
+                callbackClass
             )
+            
+            val executor = Handler(Looper.getMainLooper())::post
+            
+            takeScreenshotMethod.invoke(service, displayId, executor, callback)
             
             latch.await(5, TimeUnit.SECONDS)
             resultBitmap
@@ -84,7 +111,6 @@ object ScreenshotHelper {
     
     /**
      * 等待像素颜色匹配（轮询）
-     * 不支持截图的设备会直接返回 false
      */
     fun waitForPixel(
         service: AccessibilityService,
@@ -95,7 +121,7 @@ object ScreenshotHelper {
         tolerance: Int = 30
     ): Boolean {
         if (!isSupported) {
-            Log.w(TAG, "Screenshot not supported on this device, falling back to fixed wait")
+            Log.w(TAG, "Screenshot not supported, falling back to fixed wait")
             try { Thread.sleep(timeoutMs) } catch (_: InterruptedException) {}
             return false
         }
