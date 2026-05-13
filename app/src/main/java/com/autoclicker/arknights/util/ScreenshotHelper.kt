@@ -25,8 +25,9 @@ object ScreenshotHelper {
             val displayId = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
                 service.display?.displayId ?: 0
             } else {
+                val wm = service.getSystemService(android.content.Context.WINDOW_SERVICE) as android.view.WindowManager
                 @Suppress("DEPRECATION")
-                service.windowManager.defaultDisplay.displayId
+                wm.defaultDisplay.displayId
             }
             
             service.takeScreenshot(

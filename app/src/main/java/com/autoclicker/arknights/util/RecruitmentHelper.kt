@@ -79,7 +79,7 @@ object RecruitmentHelper {
                 selectedTags = emptyList(),
                 shouldRefresh = true,
                 justRecruit = false,
-                reason = "没有保底组合，刷新tag（剩余$refreshRemaining次）"
+                reason = "没有保底组合，刷新tag（剩余${refreshRemaining}次）"
             )
         }
         

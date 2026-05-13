@@ -182,6 +182,8 @@ class MainActivity : AppCompatActivity() {
             OperationType.WAIT -> spinnerType.setSelection(2)
             OperationType.SWIPE -> spinnerType.setSelection(3)
             OperationType.LONG_PRESS_DRAG -> spinnerType.setSelection(4)
+            OperationType.WAIT_PIXEL -> spinnerType.setSelection(2)
+            OperationType.MULTI_CLICK -> spinnerType.setSelection(0)
         }
         
         etX.setText(point.x.toInt().toString())
@@ -608,5 +610,4 @@ class MainActivity : AppCompatActivity() {
         dialog.show()
     }
 
-}
 }
