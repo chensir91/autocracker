@@ -313,16 +313,14 @@ class RecordingOverlayView(context: Context) : View(context) {
                     
                     // 类型标签
                     canvas.drawText("拖", midX, midY + 50f, typeLabelPaint)
+                }
                 OperationType.WAIT_PIXEL -> {
-                    // 等像素和等待用同样的样式
                     canvas.drawCircle(drawX(point.x), drawY(point.y), 30f, waitPaint)
                     canvas.drawCircle(drawX(point.x), drawY(point.y), 30f, waitStrokePaint)
                 }
                 OperationType.MULTI_CLICK -> {
-                    // 连击和点击用同样的样式
-                    canvas.drawCircle(drawX(point.x), drawY(point.y), 30f, clickPaint)
-                    canvas.drawCircle(drawX(point.x), drawY(point.y), 30f, clickStrokePaint)
-                }
+                    canvas.drawCircle(drawX(point.x), drawY(point.y), 30f, circlePaint)
+                    canvas.drawCircle(drawX(point.x), drawY(point.y), 30f, circleStrokePaint)
                 }
             }
         }

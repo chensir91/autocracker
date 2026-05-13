@@ -34,7 +34,7 @@ object ScreenshotHelper {
                 displayId,
                 android.os.Handler(android.os.Looper.getMainLooper())::post,
                 object : AccessibilityService.TakeScreenshotCallback {
-                    override fun onSuccess(screenshot: AccessibilityService.Screenshot) {
+                    override fun onSuccess(screenshot: android.accessibilityservice.AccessibilityService.Screenshot) {
                         try {
                             val hardwareBuffer = screenshot.hardwareBuffer
                             resultBitmap = Bitmap.wrapHardwareBuffer(hardwareBuffer, null)
