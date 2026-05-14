@@ -296,6 +296,9 @@ class RecordingOverlayView(context: Context) : View(context) {
                 OperationType.WAIT -> {
                     // WAIT类型不显示标记（等待本身不可见）
                 }
+                OperationType.WAIT_PIXEL, OperationType.MULTI_CLICK -> {
+                    // 暂不支持显示
+                }
             }
         }
         

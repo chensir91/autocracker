@@ -190,6 +190,7 @@ class MainActivity : AppCompatActivity() {
             OperationType.WAIT -> spinnerType.setSelection(2)
             OperationType.SWIPE -> spinnerType.setSelection(3)
             OperationType.LONG_PRESS_DRAG -> spinnerType.setSelection(4)
+            OperationType.WAIT_PIXEL, OperationType.MULTI_CLICK -> spinnerType.setSelection(0)
         }
         
         etX.setText(point.x.toInt().toString())
@@ -521,7 +522,6 @@ class MainActivity : AppCompatActivity() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_load_scheme, null)
         val tabLayout = dialogView.findViewById<TabLayout>(R.id.tabLayout)
         val layoutDailyScheme = dialogView.findViewById<android.widget.LinearLayout>(R.id.layoutDailyScheme)
-        val layoutSubschemes = dialogView.findViewById<android.widget.LinearLayout>(R.id.layoutSubschemes)
         val btnLoadDaily = dialogView.findViewById<android.widget.Button>(R.id.btnLoadDailyScheme)
         val rvSchemes = dialogView.findViewById<RecyclerView>(R.id.rvSchemes)
         val tvEmptyHint = dialogView.findViewById<android.widget.TextView>(R.id.tvEmptyHint)
@@ -550,7 +550,7 @@ class MainActivity : AppCompatActivity() {
                 setTextColor(getColor(R.color.text_primary))
             }
             checkboxes[subScheme.id] = checkBox
-            layoutSubschemes.addView(checkBox)
+            layoutDailyScheme.addView(checkBox)
         }
         
         // 完整日常=全选/取消全选

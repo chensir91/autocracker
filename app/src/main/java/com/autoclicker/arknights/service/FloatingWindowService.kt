@@ -783,6 +783,9 @@ class FloatingWindowService : Service() {
                         totalClicks++
                         clickCountSinceLastPause++
                     }
+                    OperationType.WAIT_PIXEL, OperationType.MULTI_CLICK -> {
+                        // 暂不支持，跳过
+                    }
                 }
                 
                 // 检查是否需要微停顿
@@ -1107,6 +1110,7 @@ class FloatingWindowService : Service() {
                     OperationType.SWIPE -> ClickUtils.swipe(service, x, y, endX, endY, duration = duration)
                     OperationType.LONG_PRESS_DRAG -> ClickUtils.longPressDrag(service, x, y, endX, endY, holdDuration = duration)
                     OperationType.WAIT -> { }
+                    OperationType.WAIT_PIXEL, OperationType.MULTI_CLICK -> { }
                 }
             } else {
                 // fallback到input命令
@@ -1124,6 +1128,7 @@ class FloatingWindowService : Service() {
                 OperationType.SWIPE -> duration + 50L
                 OperationType.LONG_PRESS_DRAG -> duration + 100L
                 OperationType.WAIT -> 0L
+                OperationType.WAIT_PIXEL, OperationType.MULTI_CLICK -> 50L
             }
             handler.postDelayed({
                 // 重新添加覆盖层
