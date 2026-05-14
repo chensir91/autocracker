@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.autoclicker.arknights.ui.DraggableFrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/draggableContainer"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content">
+
+    <!-- 录制模式缩小悬浮窗：只显示停止按钮 -->
+    <LinearLayout
+        android:id="@+id/recordingMiniContainer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_recording_mini"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:padding="8dp">
+
+        <!-- 录制指示 -->
+        <View
+            android:id="@+id/recordingIndicator"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:background="@drawable/bg_recording_dot" />
+
+        <!-- 停止按钮 -->
+        <ImageButton
+            android:id="@+id/btnStopRecording"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_floating_button"
+            android:contentDescription="停止录制"
+            android:padding="8dp"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            app:tint="@color/status_recording" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:text="停止"
+            android:textColor="@color/text_on_primary"
+            android:textSize="12sp" />
+
+    </LinearLayout>
+
+</com.autoclicker.arknights.ui.DraggableFrameLayout>

@@ -36,7 +36,6 @@ import com.autoclicker.arknights.service.AutoClickAccessibilityService
 import com.autoclicker.arknights.service.FloatingWindowService
 import com.autoclicker.arknights.util.PermissionUtils
 import com.google.android.material.tabs.TabLayout
-import com.google.gson.Gson
 
 /**
  * 主Activity v1.2.0
@@ -144,6 +143,7 @@ class MainActivity : AppCompatActivity() {
     
     /**
      * 刷新点位列表
+     * 【优化1+4】大方案加载优化：点位数量>=50时只显示摘要信息，不展开列表
      */
     private fun refreshPointList() {
         val points = floatingService?.getRecordedPoints() ?: emptyList()
@@ -151,7 +151,14 @@ class MainActivity : AppCompatActivity() {
         if (points.isEmpty()) {
             binding.tvNoPointsHint.visibility = View.VISIBLE
             binding.rvPoints.visibility = View.GONE
+            binding.tvNoPointsHint.text = getString(R.string.no_points_hint)
+        } else if (points.size >= 50) {
+            // 【优化1】大方案（50+点位）只显示摘要，不显示列表
+            binding.tvNoPointsHint.visibility = View.VISIBLE
+            binding.rvPoints.visibility = View.GONE
+            binding.tvNoPointsHint.text = "已加载方案: ${points.size}个点位"
         } else {
+            // 小方案正常显示列表
             binding.tvNoPointsHint.visibility = View.GONE
             binding.rvPoints.visibility = View.VISIBLE
             pointAdapter.updatePoints(points.toMutableList())
@@ -183,8 +190,6 @@ class MainActivity : AppCompatActivity() {
             OperationType.WAIT -> spinnerType.setSelection(2)
             OperationType.SWIPE -> spinnerType.setSelection(3)
             OperationType.LONG_PRESS_DRAG -> spinnerType.setSelection(4)
-            OperationType.WAIT_PIXEL -> spinnerType.setSelection(2)
-            OperationType.MULTI_CLICK -> spinnerType.setSelection(0)
         }
         
         etX.setText(point.x.toInt().toString())
@@ -469,10 +474,6 @@ class MainActivity : AppCompatActivity() {
         binding.btnLoad.setOnClickListener {
             showLoadDialog()
         }
-        
-        binding.btnExport.setOnClickListener {
-            exportPoints()
-        }
     }
     
     /**
@@ -510,15 +511,17 @@ class MainActivity : AppCompatActivity() {
     }
     
     /**
-     * 显示加载方案对话框 v2.0
-     * 预设方案：完整日常 + 速度模式选择
-     * 我的方案：从已保存的方案中加载
+     * 显示加载方案对话框（支持预设方案和我的方案）
+     */
+    
+    /**
+     * 显示加载方案对话框（支持预设日常方案和我的方案）
      */
     private fun showLoadDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_load_scheme, null)
         val tabLayout = dialogView.findViewById<TabLayout>(R.id.tabLayout)
         val layoutDailyScheme = dialogView.findViewById<android.widget.LinearLayout>(R.id.layoutDailyScheme)
-        val rgSpeedMode = dialogView.findViewById<android.widget.RadioGroup>(R.id.rgSpeedMode)
+        val layoutSubschemes = dialogView.findViewById<android.widget.LinearLayout>(R.id.layoutSubschemes)
         val btnLoadDaily = dialogView.findViewById<android.widget.Button>(R.id.btnLoadDailyScheme)
         val rvSchemes = dialogView.findViewById<RecyclerView>(R.id.rvSchemes)
         val tvEmptyHint = dialogView.findViewById<android.widget.TextView>(R.id.tvEmptyHint)
@@ -526,6 +529,7 @@ class MainActivity : AppCompatActivity() {
         // 获取分辨率和我的方案
         val (screenWidth, screenHeight) = settingsManager.getResolution()
         val mySchemes = settingsManager.getAllSchemes()
+        val subSchemes = PresetSchemes.getSubSchemes()
         
         // 创建对话框
         val dialog = AlertDialog.Builder(this)
@@ -533,13 +537,67 @@ class MainActivity : AppCompatActivity() {
             .setNegativeButton(getString(R.string.cancel), null)
             .create()
         
+        // 默认勾选完整日常（即全选）
+        val checkboxStates = mutableMapOf<String, Boolean>()
+        subSchemes.forEach { checkboxStates[it.id] = true }
+        
+        // 创建多选框列表
+        val checkboxes = mutableMapOf<String, android.widget.CheckBox>()
+        for (subScheme in subSchemes) {
+            val checkBox = android.widget.CheckBox(this).apply {
+                text = "${subScheme.name}：${subScheme.desc}"
+                isChecked = true
+                setTextColor(getColor(R.color.text_primary))
+            }
+            checkboxes[subScheme.id] = checkBox
+            layoutSubschemes.addView(checkBox)
+        }
+        
+        // 完整日常=全选/取消全选
+        val completeCb = checkboxes["complete"]!!
+        val individualIds = listOf("base", "rewards", "credit", "farm16", "friend")
+        
+        fun updateFromComplete(isChecked: Boolean) {
+            for (id in individualIds) {
+                checkboxes[id]?.isChecked = isChecked
+                checkboxStates[id] = isChecked
+            }
+        }
+        
+        fun updateCompleteFromIndividual() {
+            val allChecked = individualIds.all { checkboxStates[it] == true }
+            completeCb.setOnCheckedChangeListener(null)
+            completeCb.isChecked = allChecked
+            checkboxStates["complete"] = allChecked
+            completeCb.setOnCheckedChangeListener { _, checked ->
+                checkboxStates["complete"] = checked
+                updateFromComplete(checked)
+            }
+        }
+        
+        completeCb.setOnCheckedChangeListener { _, isChecked ->
+            checkboxStates["complete"] = isChecked
+            updateFromComplete(isChecked)
+        }
+        
+        for (id in individualIds) {
+            checkboxes[id]?.setOnCheckedChangeListener { _, isChecked ->
+                checkboxStates[id] = isChecked
+                updateCompleteFromIndividual()
+            }
+        }
+        
         // 我的方案适配器
         val myAdapter = SchemeAdapter(
             schemes = mySchemes,
             onItemClick = { scheme ->
                 floatingService?.loadScheme(scheme)
+                // 【优化4】加载方案后只显示摘要，不展开列表
+                // refreshPointList()会根据点位数量自动决定是否显示列表
                 refreshPointList()
-                Toast.makeText(this@MainActivity, getString(R.string.scheme_load_success), Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@MainActivity, 
+                    "已加载: ${scheme.name} (${scheme.points.size}个点位)", 
+                    Toast.LENGTH_SHORT).show()
                 dialog.dismiss()
             }
         )
@@ -548,7 +606,7 @@ class MainActivity : AppCompatActivity() {
         rvSchemes.layoutManager = LinearLayoutManager(this)
         rvSchemes.adapter = myAdapter
         
-        // 默认显示预设方案（完整日常）
+        // 默认显示预设方案（日常方案）
         layoutDailyScheme.visibility = View.VISIBLE
         rvSchemes.visibility = View.GONE
         
@@ -557,7 +615,7 @@ class MainActivity : AppCompatActivity() {
             override fun onTabSelected(tab: TabLayout.Tab?) {
                 when (tab?.position) {
                     0 -> {
-                        // 预设方案（完整日常）
+                        // 预设方案（日常方案）
                         layoutDailyScheme.visibility = View.VISIBLE
                         rvSchemes.visibility = View.GONE
                         tvEmptyHint.visibility = View.GONE
@@ -579,104 +637,29 @@ class MainActivity : AppCompatActivity() {
             override fun onTabReselected(tab: TabLayout.Tab?) {}
         })
         
-        // 加载完整日常按钮
+        // 加载日常方案按钮
         btnLoadDaily.setOnClickListener {
-            // 获取速度模式
-            val speedMode = when (rgSpeedMode.checkedRadioButtonId) {
-                R.id.rbFast -> "fast"
-                else -> "normal"
-            }
-            
-            // 获取速度模式名称
-            val speedModeName = if (speedMode == "fast") "快速模式" else "标准模式"
-            
-            // 构建方案
-            val scheme = PresetSchemes.buildDailyScheme(listOf("daily"), screenWidth, screenHeight, speedMode)
-            if (scheme.points.isEmpty()) {
-                Toast.makeText(this@MainActivity, "方案生成失败", Toast.LENGTH_SHORT).show()
+            val selectedIds = checkboxStates.filter { it.value }.keys.toList()
+            if (selectedIds.isEmpty()) {
+                Toast.makeText(this@MainActivity, "请至少选择一个子方案", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
             
-            // 更新设置中的速度模式
-            val currentSettings = settingsManager.getSettings()
-            settingsManager.saveSettings(currentSettings.copy(waitSpeed = speedMode))
+            val scheme = PresetSchemes.buildDailyScheme(selectedIds, screenWidth, screenHeight)
+            if (scheme.points.isEmpty()) {
+                Toast.makeText(this@MainActivity, "所选子方案没有有效的点击点位", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
             
-            // 加载方案
             floatingService?.loadScheme(scheme)
             refreshPointList()
-            
             val clickCount = scheme.points.count { it.type != OperationType.WAIT }
             Toast.makeText(this@MainActivity, 
-                "已加载完整日常（$speedModeName）\n共${clickCount}个点击步骤",
-                Toast.LENGTH_LONG).show()
+                "已加载日常方案\n包含${selectedIds.size}个子方案，共${clickCount}个点击步骤", 
+                Toast.LENGTH_SHORT).show()
             dialog.dismiss()
         }
         
         dialog.show()
-    }
-    
-    /**
-     * 导出点位数据
-     * 支持复制到剪贴板或分享
-     */
-    private fun exportPoints() {
-        val points = floatingService?.getRecordedPoints() ?: emptyList()
-        if (points.isEmpty()) {
-            Toast.makeText(this, getString(R.string.export_no_points), Toast.LENGTH_SHORT).show()
-            return
-        }
-        
-        val (screenWidth, screenHeight) = settingsManager.getResolution()
-        
-        // 构建导出数据
-        val exportData = mapOf(
-            "name" to "录制方案",
-            "screenWidth" to screenWidth,
-            "screenHeight" to screenHeight,
-            "points" to points.map { p ->
-                mutableMapOf(
-                    "order" to p.order,
-                    "type" to p.type.name,
-                    "x" to p.x,
-                    "y" to p.y,
-                    "duration" to p.duration
-                ).apply {
-                    if (p.type == OperationType.SWIPE) {
-                        put("endX", p.endX)
-                        put("endY", p.endY)
-                    }
-                }
-            }
-        )
-        
-        val json = Gson().toJson(exportData)
-        
-        val options = arrayOf(
-            getString(R.string.export_option_clipboard),
-            getString(R.string.export_option_share)
-        )
-        
-        AlertDialog.Builder(this)
-            .setTitle(getString(R.string.export_points))
-            .setItems(options) { _, which ->
-                when (which) {
-                    0 -> {
-                        // 复制到剪贴板
-                        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                        val clip = android.content.ClipData.newPlainText("点位数据", json)
-                        clipboard.setPrimaryClip(clip)
-                        Toast.makeText(this, getString(R.string.export_copy_success), Toast.LENGTH_SHORT).show()
-                    }
-                    1 -> {
-                        // 系统分享
-                        val intent = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_TEXT, json)
-                        }
-                        startActivity(Intent.createChooser(intent, getString(R.string.export_share_title)))
-                    }
-                }
-            }
-            .show()
     }
 }

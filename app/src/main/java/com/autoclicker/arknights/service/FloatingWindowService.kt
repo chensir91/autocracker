@@ -40,7 +40,6 @@ import com.autoclicker.arknights.ui.DraggableFrameLayout
 import com.autoclicker.arknights.ui.MainActivity
 import com.autoclicker.arknights.ui.RecordingOverlayView
 import com.autoclicker.arknights.util.ClickUtils
-import com.autoclicker.arknights.util.ScreenshotHelper
 import kotlin.random.Random
 
 /**
@@ -53,11 +52,16 @@ class FloatingWindowService : Service() {
     private lateinit var windowManager: WindowManager
     private lateinit var floatingView: View
     private lateinit var miniFloatView: View  // 最小化视图
+    private var recordingMiniView: View? = null  // 录制缩小视图
     private lateinit var layoutParams: WindowManager.LayoutParams
     private var miniLayoutParams: WindowManager.LayoutParams? = null
+    private var recordingMiniParams: WindowManager.LayoutParams? = null  // 录制缩小布局参数
     private var recordingOverlay: RecordingOverlayView? = null
     private var overlayParams: WindowManager.LayoutParams? = null
     private var overlayRestoreRunnable: Runnable? = null  // 用于取消pending的覆盖层恢复
+    
+    // 是否处于录制缩小模式
+    private var isRecordingMinimized = false
     
     // 点击反馈视图
     private var clickFeedbackView: ClickFeedbackView? = null
@@ -143,6 +147,7 @@ class FloatingWindowService : Service() {
         super.onDestroy()
         stopClicking()
         hideRecordingOverlay()
+        hideRecordingMiniWindow()  // 清理录制缩小视图
         hideClickFeedback()
         try {
             windowManager.removeView(floatingView)
@@ -450,6 +455,7 @@ class FloatingWindowService : Service() {
     
     /**
      * 切换录制状态
+     * 【优化5】录制时悬浮窗缩小为只显示停止按钮的小条
      */
     fun toggleRecording() {
         isRecording = !isRecording
@@ -464,7 +470,11 @@ class FloatingWindowService : Service() {
             onRecordingPoint?.invoke(ClickPoint(0f, 0f, -1)) // 发送清空信号
             // 显示录制覆盖层
             showRecordingOverlay()
+            // 【优化5】录制时缩小悬浮窗为只显示停止按钮
+            showRecordingMiniWindow()
         } else {
+            // 【优化5】停止录制时恢复正常悬浮窗
+            hideRecordingMiniWindow()
             // 隐藏录制覆盖层
             hideRecordingOverlay()
         }
@@ -773,29 +783,6 @@ class FloatingWindowService : Service() {
                         totalClicks++
                         clickCountSinceLastPause++
                     }
-                    OperationType.WAIT_PIXEL -> {
-                        // 等待像素颜色匹配（截图识别）
-                        val matched = ScreenshotHelper.waitForPixel(
-                            service, point.x.toInt(), point.y.toInt(),
-                            point.targetColor, point.timeoutMs, point.checkIntervalMs, point.colorTolerance
-                        )
-                        if (!matched) {
-                            Log.w(TAG, "WAIT_PIXEL timeout at (${point.x.toInt()},${point.y.toInt()}), continuing anyway")
-                        }
-                    }
-                    OperationType.MULTI_CLICK -> {
-                        // 在同一位置连续点击多次
-                        for (i in 0 until point.repeatCount) {
-                            if (!isRunning || isPaused) break
-                            showClickFeedback(point.x, point.y)
-                            ClickUtils.click(service, point.x, point.y, offsetRange = settings.offsetRange)
-                            totalClicks++
-                            clickCountSinceLastPause++
-                            if (i < point.repeatCount - 1) {
-                                try { Thread.sleep(point.repeatIntervalMs) } catch (_: InterruptedException) { break }
-                            }
-                        }
-                    }
                 }
                 
                 // 检查是否需要微停顿
@@ -1017,6 +1004,81 @@ class FloatingWindowService : Service() {
     }
     
     /**
+     * 【优化5】显示录制缩小悬浮窗（只显示停止按钮）
+     * 录制开始时调用，隐藏主悬浮窗，显示录制专用缩小视图
+     */
+    @SuppressLint("InflateParams")
+    private fun showRecordingMiniWindow() {
+        if (recordingMiniView != null) return
+        
+        recordingMiniView = LayoutInflater.from(this).inflate(R.layout.layout_recording_mini, null)
+        
+        val windowType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
+        
+        recordingMiniParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            windowType,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = 100
+            y = 300
+        }
+        
+        // 使用DraggableFrameLayout的拖动功能
+        val draggableContainer = recordingMiniView!!.findViewById<DraggableFrameLayout>(R.id.draggableContainer)
+        draggableContainer.onDrag = { dx, dy ->
+            recordingMiniParams?.x = (recordingMiniParams?.x ?: 0) + dx.toInt()
+            recordingMiniParams?.y = (recordingMiniParams?.y ?: 0) + dy.toInt()
+            recordingMiniParams?.let { windowManager.updateViewLayout(recordingMiniView, it) }
+        }
+        
+        // 停止按钮点击事件
+        recordingMiniView!!.findViewById<ImageButton>(R.id.btnStopRecording).setOnClickListener {
+            // 停止录制
+            toggleRecording()
+        }
+        
+        // 隐藏主悬浮窗
+        floatingView.visibility = View.GONE
+        isRecordingMinimized = true
+        
+        // 显示录制缩小视图
+        try {
+            windowManager.addView(recordingMiniView, recordingMiniParams)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error showing recording mini window", e)
+        }
+    }
+    
+    /**
+     * 【优化5】隐藏录制缩小悬浮窗，恢复主悬浮窗
+     * 录制结束时调用
+     */
+    private fun hideRecordingMiniWindow() {
+        recordingMiniView?.let {
+            try {
+                windowManager.removeView(it)
+            } catch (e: Exception) {
+                Log.w(TAG, "Recording mini view may already be removed", e)
+            }
+            recordingMiniView = null
+        }
+        recordingMiniParams = null
+        isRecordingMinimized = false
+        
+        // 恢复主悬浮窗
+        floatingView.visibility = View.VISIBLE
+    }
+    
+    /**
      * MIUI兼容方案：临时隐藏覆盖层来派发手势
      * 在MIUI上FLAG_NOT_TOUCHABLE可能不生效，覆盖层仍然会拦截触摸
      * 所以改为：removeView → dispatchGesture → 重新addView
@@ -1045,8 +1107,6 @@ class FloatingWindowService : Service() {
                     OperationType.SWIPE -> ClickUtils.swipe(service, x, y, endX, endY, duration = duration)
                     OperationType.LONG_PRESS_DRAG -> ClickUtils.longPressDrag(service, x, y, endX, endY, holdDuration = duration)
                     OperationType.WAIT -> { }
-                    OperationType.WAIT_PIXEL -> { }
-                    OperationType.MULTI_CLICK -> { }
                 }
             } else {
                 // fallback到input命令
@@ -1064,8 +1124,6 @@ class FloatingWindowService : Service() {
                 OperationType.SWIPE -> duration + 50L
                 OperationType.LONG_PRESS_DRAG -> duration + 100L
                 OperationType.WAIT -> 0L
-                OperationType.WAIT_PIXEL -> 0L
-                OperationType.MULTI_CLICK -> 0L
             }
             handler.postDelayed({
                 // 重新添加覆盖层

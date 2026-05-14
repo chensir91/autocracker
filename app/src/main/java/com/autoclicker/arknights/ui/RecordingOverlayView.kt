@@ -233,94 +233,68 @@ class RecordingOverlayView(context: Context) : View(context) {
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         
-        // 屏幕坐标转View坐标的辅助函数
-        val drawX = { px: Float -> px - screenOffsetX }
-        val drawY = { py: Float -> py - screenOffsetY - statusBarHeight }
+        // 【优化3】覆盖层已设置FLAG_LAYOUT_NO_LIMITS并铺满全屏，直接使用rawX/rawY
+        // 不再使用screenOffset进行偏移修正，避免横屏模式下偏移不准
+        val drawX = { px: Float -> px }
+        val drawY = { py: Float -> py }
         
-        // 绘制所有已录制的点位
-        for (point in recordedPoints) {
+        // 【优化2】只显示最后一个录制的非WAIT点位，避免画面杂乱
+        val lastActionPoint = recordedPoints.lastOrNull { it.type != OperationType.WAIT }
+        
+        // 绘制最后一个操作点位（仅CLICK/LONG_PRESS/SWIPE/LONG_PRESS_DRAG）
+        lastActionPoint?.let { point ->
             when (point.type) {
                 OperationType.CLICK -> {
                     canvas.drawCircle(drawX(point.x), drawY(point.y), 40f, circlePaint)
                     canvas.drawCircle(drawX(point.x), drawY(point.y), 40f, circleStrokePaint)
-                    // 绘制编号
                     val textY = drawY(point.y) + (textPaint.textSize / 3)
                     canvas.drawText(point.order.toString(), drawX(point.x), textY, textPaint)
                 }
                 OperationType.LONG_PRESS -> {
                     canvas.drawCircle(drawX(point.x), drawY(point.y), 40f, longPressPaint)
                     canvas.drawCircle(drawX(point.x), drawY(point.y), 40f, longPressStrokePaint)
-                    // 绘制编号
                     val textY = drawY(point.y) + (textPaint.textSize / 3)
                     canvas.drawText(point.order.toString(), drawX(point.x), textY, textPaint)
-                    // 绘制类型标签
                     canvas.drawText("长", drawX(point.x), drawY(point.y) + 60f, typeLabelPaint)
-                }
-                OperationType.WAIT -> {
-                    // 等待点在屏幕中央上方绘制
-                    val centerX = width / 2f
-                    val waitY = 120f
-                    canvas.drawCircle(centerX, waitY, 30f, waitPaint)
-                    canvas.drawCircle(centerX, waitY, 30f, waitStrokePaint)
-                    val textY = waitY + (textPaint.textSize / 3)
-                    canvas.drawText(point.order.toString(), centerX, textY, textPaint)
-                    canvas.drawText("等${point.duration}ms", centerX, waitY - 45f, typeLabelPaint)
                 }
                 OperationType.SWIPE -> {
                     // 绘制滑动起点圆
                     canvas.drawCircle(drawX(point.x), drawY(point.y), 30f, swipePaint)
                     canvas.drawCircle(drawX(point.x), drawY(point.y), 30f, swipeStrokePaint)
-                    
                     // 绘制滑动线
                     canvas.drawLine(drawX(point.x), drawY(point.y), drawX(point.endX), drawY(point.endY), swipeLinePaint)
-                    
                     // 绘制箭头头部
                     drawArrowHead(canvas, drawX(point.x), drawY(point.y), drawX(point.endX), drawY(point.endY), swipeArrowPaint)
-                    
                     // 绘制终点小圆
                     canvas.drawCircle(drawX(point.endX), drawY(point.endY), 20f, swipePaint)
                     canvas.drawCircle(drawX(point.endX), drawY(point.endY), 20f, swipeStrokePaint)
-                    
                     // 序号标注在中间
                     val midX = (drawX(point.x) + drawX(point.endX)) / 2
                     val midY = (drawY(point.y) + drawY(point.endY)) / 2
                     val textY = midY + (textPaint.textSize / 3)
                     canvas.drawText(point.order.toString(), midX, textY, textPaint)
-                    
-                    // 类型标签
                     canvas.drawText("滑", midX, midY + 50f, typeLabelPaint)
                 }
                 OperationType.LONG_PRESS_DRAG -> {
                     // 绘制长按拖动起点圆
                     canvas.drawCircle(drawX(point.x), drawY(point.y), 30f, longPressDragPaint)
                     canvas.drawCircle(drawX(point.x), drawY(point.y), 30f, longPressDragStrokePaint)
-                    
                     // 绘制拖动线
                     canvas.drawLine(drawX(point.x), drawY(point.y), drawX(point.endX), drawY(point.endY), longPressDragLinePaint)
-                    
                     // 绘制箭头头部
                     drawArrowHead(canvas, drawX(point.x), drawY(point.y), drawX(point.endX), drawY(point.endY), longPressDragArrowPaint)
-                    
                     // 绘制终点小圆
                     canvas.drawCircle(drawX(point.endX), drawY(point.endY), 20f, longPressDragPaint)
                     canvas.drawCircle(drawX(point.endX), drawY(point.endY), 20f, longPressDragStrokePaint)
-                    
                     // 序号标注在中间
                     val midX = (drawX(point.x) + drawX(point.endX)) / 2
                     val midY = (drawY(point.y) + drawY(point.endY)) / 2
                     val textY = midY + (textPaint.textSize / 3)
                     canvas.drawText(point.order.toString(), midX, textY, textPaint)
-                    
-                    // 类型标签
                     canvas.drawText("拖", midX, midY + 50f, typeLabelPaint)
                 }
-                OperationType.WAIT_PIXEL -> {
-                    canvas.drawCircle(drawX(point.x), drawY(point.y), 30f, waitPaint)
-                    canvas.drawCircle(drawX(point.x), drawY(point.y), 30f, waitStrokePaint)
-                }
-                OperationType.MULTI_CLICK -> {
-                    canvas.drawCircle(drawX(point.x), drawY(point.y), 30f, circlePaint)
-                    canvas.drawCircle(drawX(point.x), drawY(point.y), 30f, circleStrokePaint)
+                OperationType.WAIT -> {
+                    // WAIT类型不显示标记（等待本身不可见）
                 }
             }
         }
