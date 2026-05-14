@@ -63,6 +63,15 @@
     <string name="scheme_delete_success">方案已删除</string>
     <string name="scheme_empty">暂无保存的方案</string>
     
+    <!-- 导出功能 -->
+    <string name="btn_export">导出</string>
+    <string name="export_points">导出点位</string>
+    <string name="export_no_points">没有可导出的点位</string>
+    <string name="export_copy_success">已复制到剪贴板</string>
+    <string name="export_share_title">分享点位数据</string>
+    <string name="export_option_clipboard">复制到剪贴板</string>
+    <string name="export_option_share">分享</string>
+    
     <!-- 通知 -->
     <string name="notification_channel_name">连点器服务</string>
     <string name="notification_channel_desc">保持连点器在后台运行</string>

@@ -36,6 +36,7 @@ import com.autoclicker.arknights.service.AutoClickAccessibilityService
 import com.autoclicker.arknights.service.FloatingWindowService
 import com.autoclicker.arknights.util.PermissionUtils
 import com.google.android.material.tabs.TabLayout
+import com.google.gson.Gson
 
 /**
  * 主Activity v1.2.0
@@ -468,6 +469,10 @@ class MainActivity : AppCompatActivity() {
         binding.btnLoad.setOnClickListener {
             showLoadDialog()
         }
+        
+        binding.btnExport.setOnClickListener {
+            exportPoints()
+        }
     }
     
     /**
@@ -609,5 +614,69 @@ class MainActivity : AppCompatActivity() {
         
         dialog.show()
     }
-
+    
+    /**
+     * 导出点位数据
+     * 支持复制到剪贴板或分享
+     */
+    private fun exportPoints() {
+        val points = floatingService?.getRecordedPoints() ?: emptyList()
+        if (points.isEmpty()) {
+            Toast.makeText(this, getString(R.string.export_no_points), Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        val (screenWidth, screenHeight) = settingsManager.getResolution()
+        
+        // 构建导出数据
+        val exportData = mapOf(
+            "name" to "录制方案",
+            "screenWidth" to screenWidth,
+            "screenHeight" to screenHeight,
+            "points" to points.map { p ->
+                mutableMapOf(
+                    "order" to p.order,
+                    "type" to p.type.name,
+                    "x" to p.x,
+                    "y" to p.y,
+                    "duration" to p.duration
+                ).apply {
+                    if (p.type == OperationType.SWIPE) {
+                        put("endX", p.endX)
+                        put("endY", p.endY)
+                    }
+                }
+            }
+        )
+        
+        val json = Gson().toJson(exportData)
+        
+        val options = arrayOf(
+            getString(R.string.export_option_clipboard),
+            getString(R.string.export_option_share)
+        )
+        
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.export_points))
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> {
+                        // 复制到剪贴板
+                        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        val clip = android.content.ClipData.newPlainText("点位数据", json)
+                        clipboard.setPrimaryClip(clip)
+                        Toast.makeText(this, getString(R.string.export_copy_success), Toast.LENGTH_SHORT).show()
+                    }
+                    1 -> {
+                        // 系统分享
+                        val intent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, json)
+                        }
+                        startActivity(Intent.createChooser(intent, getString(R.string.export_share_title)))
+                    }
+                }
+            }
+            .show()
+    }
 }

@@ -78,7 +78,7 @@
             android:orientation="vertical"
             app:layout_constraintTop_toBottomOf="@id/tvPointInfo">
 
-            <!-- 录制和保存按钮行 -->
+            <!-- 录制、保存和导出按钮行 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -89,9 +89,10 @@
                     android:id="@+id/btnRecord"
                     android:layout_width="0dp"
                     android:layout_height="56dp"
-                    android:layout_marginEnd="8dp"
+                    android:layout_marginEnd="4dp"
                     android:layout_weight="1"
                     android:text="@string/btn_record"
+                    android:textSize="12sp"
                     app:backgroundTint="@color/status_recording"
                     app:cornerRadius="12dp" />
 
@@ -99,10 +100,22 @@
                     android:id="@+id/btnSave"
                     android:layout_width="0dp"
                     android:layout_height="56dp"
-                    android:layout_marginStart="8dp"
+                    android:layout_marginHorizontal="4dp"
                     android:layout_weight="1"
                     android:text="@string/btn_save"
+                    android:textSize="12sp"
                     app:backgroundTint="@color/accent"
+                    app:cornerRadius="12dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnExport"
+                    android:layout_width="0dp"
+                    android:layout_height="56dp"
+                    android:layout_marginStart="4dp"
+                    android:layout_weight="1"
+                    android:text="@string/btn_export"
+                    android:textSize="12sp"
+                    app:backgroundTint="@color/primary"
                     app:cornerRadius="12dp" />
             </LinearLayout>
 
