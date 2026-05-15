@@ -233,10 +233,11 @@ class RecordingOverlayView(context: Context) : View(context) {
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         
-        // 【优化3】覆盖层已设置FLAG_LAYOUT_NO_LIMITS并铺满全屏，直接使用rawX/rawY
-        // 不再使用screenOffset进行偏移修正，避免横屏模式下偏移不准
-        val drawX = { px: Float -> px }
-        val drawY = { py: Float -> py }
+        // 将屏幕坐标(rawX/rawY)转换为View内绘制坐标
+        // getLocationOnScreen返回View左上角在屏幕上的位置
+        // 绘制坐标 = 屏幕坐标 - View偏移
+        val drawX = { px: Float -> px - screenOffsetX }
+        val drawY = { py: Float -> py - screenOffsetY }
         
         // 【优化2】只显示最后一个录制的非WAIT点位，避免画面杂乱
         val lastActionPoint = recordedPoints.lastOrNull { it.type != OperationType.WAIT }
