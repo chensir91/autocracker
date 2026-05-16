@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 抹茶色圆形背景 + 微光圈 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:color="#CC1B1B" />
-    <corners android:radius="24dp" />
+    android:shape="oval">
+    <!-- 抹茶色 #8BC34A 偏深一点 #7CB342 -->
+    <solid android:color="#E07CB342" />
+    <stroke
+        android:width="2dp"
+        android:color="#A0AED581" />
 </shape>

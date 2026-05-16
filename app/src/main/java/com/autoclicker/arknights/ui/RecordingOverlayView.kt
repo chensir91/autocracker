@@ -24,10 +24,10 @@ import com.autoclicker.arknights.data.OperationType
  */
 class RecordingOverlayView(context: Context) : View(context) {
     
-    // 覆盖层在屏幕上的偏移量（用于坐标转换）
+    // 覆盖层在屏幕上的偏移量（用于屏幕坐标→View坐标转换）
     private var screenOffsetX = 0
     private var screenOffsetY = 0
-    private var statusBarHeight = 0  // 状态栏高度，用于修正某些设备上getLocationOnScreen返回0的问题
+    private var offsetCalibrated = false  // 是否已通过触摸事件校准偏移
     
     // 半透明淡绿色填充
     private val circlePaint = Paint().apply {
@@ -198,36 +198,15 @@ class RecordingOverlayView(context: Context) : View(context) {
     
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        updateScreenOffset()
+        // 不再使用getLocationOnScreen，改用触摸事件校准
     }
     
     private fun updateScreenOffset() {
-        val location = IntArray(2)
-        getLocationOnScreen(location)
-        screenOffsetX = location[0]
-        screenOffsetY = location[1]
-        
-        // 修复某些设备上getLocationOnScreen返回0但view实际从状态栏下方开始的问题
-        if (screenOffsetY == 0) {
-            val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
-            if (resourceId > 0) {
-                statusBarHeight = resources.getDimensionPixelSize(resourceId)
-            }
-        }
+        // 已废弃，保留空方法避免编译错误
     }
     
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        updateScreenOffset()
-        // 计算停止按钮位置（右上角）
-
-
-
-        
-        // 计算撤销按钮位置（停止按钮下方）
-
-
-
     }
     
     override fun onDraw(canvas: Canvas) {
@@ -366,6 +345,13 @@ class RecordingOverlayView(context: Context) : View(context) {
         
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
+                // 首次触摸时校准偏移：rawX/rawY是屏幕坐标，x/y是View内坐标
+                // 偏移 = 屏幕坐标 - View坐标 = overlay在屏幕上的起始位置
+                if (!offsetCalibrated) {
+                    screenOffsetX = (rawX - x).toInt()
+                    screenOffsetY = (rawY - y).toInt()
+                    offsetCalibrated = true
+                }
 
                 
                 instructionShown = false
