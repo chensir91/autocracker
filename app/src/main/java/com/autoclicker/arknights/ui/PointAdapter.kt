@@ -68,8 +68,6 @@ class PointAdapter(
             OperationType.MULTI_CLICK -> {
                 holder.tvType.text = "连击"
                 holder.tvType.setTextColor(0xFF26C6DA.toInt())  // 青色
-                holder.tvType.text = "长按拖动"
-                holder.tvType.setTextColor(0xFFFFB74D.toInt())  // 淡橙色
             }
         }
         
@@ -82,17 +80,13 @@ class PointAdapter(
                 holder.tvCoords.text = "(${point.x.toInt()},${point.y.toInt()})→(${point.endX.toInt()},${point.endY.toInt()})"
             }
             OperationType.LONG_PRESS_DRAG -> {
-                holder.tvType.text = "长按拖动"
-                holder.tvType.setTextColor(0xFFFFB74D.toInt())  // 淡橙色
+                holder.tvCoords.text = "(${point.x.toInt()},${point.y.toInt()})→(${point.endX.toInt()},${point.endY.toInt()})"
             }
             OperationType.WAIT_PIXEL -> {
-                holder.tvType.text = "等像素"
-                holder.tvType.setTextColor(0xFF42A5F5.toInt())  // 蓝色
+                holder.tvCoords.text = "(${point.x.toInt()},${point.y.toInt()})"
             }
             OperationType.MULTI_CLICK -> {
-                holder.tvType.text = "连击"
-                holder.tvType.setTextColor(0xFF26C6DA.toInt())  // 青色
-                holder.tvCoords.text = "(${point.x.toInt()},${point.y.toInt()})→(${point.endX.toInt()},${point.endY.toInt()})"
+                holder.tvCoords.text = "(${point.x.toInt()},${point.y.toInt()})"
             }
             else -> {
                 holder.tvCoords.text = "X: ${point.x.toInt()}, Y: ${point.y.toInt()}"

@@ -29,6 +29,8 @@ import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.autoclicker.arknights.R
 import com.autoclicker.arknights.data.AppSettings
 import com.autoclicker.arknights.data.ClickPoint
@@ -66,6 +68,18 @@ class FloatingWindowService : Service() {
     // 点击反馈视图
     private var clickFeedbackView: ClickFeedbackView? = null
     private var clickFeedbackParams: WindowManager.LayoutParams? = null
+    
+    // 点列表面板
+    private var pointListPanel: View? = null
+    private var pointListParams: WindowManager.LayoutParams? = null
+    private var pointListAdapter: PointListAdapter? = null
+    private var isPointListVisible = false
+    
+    // 点位调整模式
+    private var isAdjustingPoint = false
+    private var adjustingPointPosition = -1
+    private var adjustMarker: AdjustPointMarker? = null
+    private var adjustMarkerParams: WindowManager.LayoutParams? = null
     
     private val binder = LocalBinder()
     private val handler = Handler(Looper.getMainLooper())
@@ -149,6 +163,8 @@ class FloatingWindowService : Service() {
         hideRecordingOverlay()
         hideRecordingMiniWindow()  // 清理录制缩小视图
         hideClickFeedback()
+        hidePointListPanel()  // 清理点列表面板
+        hideAdjustMarker()  // 清理调整标记
         try {
             windowManager.removeView(floatingView)
         } catch (e: Exception) {
@@ -317,6 +333,15 @@ class FloatingWindowService : Service() {
         // 最小化按钮
         floatingView.findViewById<ImageButton>(R.id.btnMinimize)?.setOnClickListener {
             minimizeWindow()
+        }
+        
+        // 列表按钮
+        floatingView.findViewById<ImageButton>(R.id.btnPointList)?.setOnClickListener {
+            if (isPointListVisible) {
+                hidePointListPanel()
+            } else {
+                showPointListPanel()
+            }
         }
         
         windowManager.addView(floatingView, layoutParams)
@@ -1230,6 +1255,251 @@ class FloatingWindowService : Service() {
             } else {
                 context.startService(intent)
             }
+        }
+    }
+    
+    /**
+     * 显示点列表面板
+     */
+    @SuppressLint("InflateParams")
+    fun showPointListPanel() {
+        if (pointListPanel != null) return
+        
+        val panelView = LayoutInflater.from(this).inflate(R.layout.layout_point_list_panel, null)
+        
+        val windowType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
+        
+        val screenWidth = resources.displayMetrics.widthPixels
+        
+        pointListParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            windowType,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.END or Gravity.TOP
+            x = 0
+            y = 0
+        }
+        
+        // 设置适配器
+        pointListAdapter = PointListAdapter(
+            points = recordedPoints,
+            onShowClick = { position, point ->
+                // 切换高亮点位显示
+                pointListAdapter?.highlightedPosition = position
+                pointListAdapter?.notifyDataSetChanged()
+                updateOverlayHighlight(position)
+            },
+            onEditClick = { position, point ->
+                // 进入调整模式
+                hidePointListPanel()
+                showAdjustMarker(position, point)
+            },
+            onDeleteClick = { position ->
+                // 删除点位
+                if (position in 0 until recordedPoints.size) {
+                    recordedPoints.removeAt(position)
+                    // 重新编号
+                    recordedPoints.forEachIndexed { idx, p ->
+                        p.order = idx + 1
+                    }
+                    pointListAdapter?.removePoint(position)
+                    onPointsChanged?.invoke(recordedPoints.size)
+                }
+            }
+        )
+        
+        val rvPointList = panelView.findViewById<RecyclerView>(R.id.rvPointList)
+        rvPointList.layoutManager = LinearLayoutManager(this)
+        rvPointList.adapter = pointListAdapter
+        
+        // 空提示
+        val tvEmpty = panelView.findViewById<TextView>(R.id.tvPointListEmpty)
+        tvEmpty.visibility = if (recordedPoints.isEmpty()) View.VISIBLE else View.GONE
+        rvPointList.visibility = if (recordedPoints.isEmpty()) View.GONE else View.VISIBLE
+        
+        // 关闭按钮
+        panelView.findViewById<ImageButton>(R.id.btnClosePointList).setOnClickListener {
+            hidePointListPanel()
+        }
+        
+        try {
+            windowManager.addView(panelView, pointListParams)
+            pointListPanel = panelView
+            isPointListVisible = true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error showing point list panel", e)
+        }
+    }
+    
+    /**
+     * 隐藏点列表面板
+     */
+    fun hidePointListPanel() {
+        pointListPanel?.let {
+            try {
+                windowManager.removeView(it)
+            } catch (e: Exception) {
+                Log.w(TAG, "Error removing point list panel", e)
+            }
+        }
+        pointListPanel = null
+        pointListParams = null
+        isPointListVisible = false
+    }
+    
+    /**
+     * 更新overlay高亮显示
+     */
+    private fun updateOverlayHighlight(position: Int) {
+        recordingOverlay?.highlightPointOrder = position
+    }
+    
+    /**
+     * 显示点位调整标记
+     */
+    @SuppressLint("ClickableViewAccessibility")
+    private fun showAdjustMarker(position: Int, point: ClickPoint) {
+        if (point.x <= 0 && point.y <= 0) {
+            Toast.makeText(this, "该点位无法调整", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        isAdjustingPoint = true
+        adjustingPointPosition = position
+        
+        adjustMarker = AdjustPointMarker(this).apply {
+            setPoint(point)
+        }
+        
+        val windowType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
+        
+        adjustMarkerParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            windowType,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = point.x.toInt() - 25
+            y = point.y.toInt() - 25
+        }
+        
+        // 触摸拖动
+        adjustMarker?.setOnTouchListener { view, event ->
+            when (event.action) {
+                MotionEvent.ACTION_MOVE -> {
+                    adjustMarkerParams?.let { params ->
+                        params.x = event.rawX.toInt() - 25
+                        params.y = event.rawY.toInt() - 25
+                        try {
+                            windowManager.updateViewLayout(adjustMarker, params)
+                        } catch (e: Exception) {}
+                    }
+                }
+                MotionEvent.ACTION_UP -> {
+                    // 更新点位坐标
+                    val newX = event.rawX.toInt() + 25f
+                    val newY = event.rawY.toInt() + 25f
+                    if (adjustingPointPosition in 0 until recordedPoints.size) {
+                        val updatedPoint = recordedPoints[adjustingPointPosition]
+                        updatedPoint.x = newX
+                        updatedPoint.y = newY
+                        onPointsChanged?.invoke(recordedPoints.size)
+                    }
+                    hideAdjustMarker()
+                }
+            }
+            true
+        }
+        
+        try {
+            windowManager.addView(adjustMarker, adjustMarkerParams)
+            Toast.makeText(this, "拖动红点到新位置后松开", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error showing adjust marker", e)
+            isAdjustingPoint = false
+        }
+    }
+    
+    /**
+     * 隐藏点位调整标记
+     */
+    private fun hideAdjustMarker() {
+        adjustMarker?.let {
+            try {
+                windowManager.removeView(it)
+            } catch (e: Exception) {}
+        }
+        adjustMarker = null
+        adjustMarkerParams = null
+        isAdjustingPoint = false
+        adjustingPointPosition = -1
+    }
+    
+    /**
+     * 点位调整标记视图
+     * 显示可拖动的红点标记
+     */
+    class AdjustPointMarker(context: Context) : View(context) {
+        
+        private val fillPaint = Paint().apply {
+            color = Color.RED
+            style = Paint.Style.FILL
+            isAntiAlias = true
+        }
+        
+        private val strokePaint = Paint().apply {
+            color = Color.WHITE
+            style = Paint.Style.STROKE
+            strokeWidth = 4f
+            isAntiAlias = true
+        }
+        
+        private val textPaint = Paint().apply {
+            color = Color.WHITE
+            textSize = 24f
+            textAlign = Paint.Align.CENTER
+            isAntiAlias = true
+        }
+        
+        private var pointOrder: Int = 0
+        private val radius = 25f
+        
+        fun setPoint(point: ClickPoint) {
+            pointOrder = point.order
+            invalidate()
+        }
+        
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            val cx = radius
+            val cy = radius
+            
+            // 绘制红点
+            canvas.drawCircle(cx, cy, radius, fillPaint)
+            canvas.drawCircle(cx, cy, radius, strokePaint)
+            
+            // 绘制序号
+            val textY = cy + 8f
+            canvas.drawText(pointOrder.toString(), cx, textY, textPaint)
+        }
+        
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            setMeasuredDimension((radius * 2).toInt(), (radius * 2).toInt())
         }
     }
 }

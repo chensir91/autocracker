@@ -160,6 +160,9 @@ class RecordingOverlayView(context: Context) : View(context) {
     
     private val recordedPoints = mutableListOf<ClickPoint>()
     
+    // 高亮显示的点位序号（-1表示只显示最后一个，其他值表示只显示该序号）
+    var highlightPointOrder: Int = -1
+    
     var onPointRecorded: ((ClickPoint) -> Unit)? = null
     var onUndoPoint: (() -> Unit)? = null
     var onFinishRecording: (() -> Unit)? = null

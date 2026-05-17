@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="?attr/selectableItemBackground"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:padding="8dp">
+
+    <!-- 序号 -->
+    <TextView
+        android:id="@+id/tvPointOrder"
+        android:layout_width="28dp"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:textColor="@color/text_secondary"
+        android:textSize="11sp" />
+
+    <!-- 类型+坐标 -->
+    <TextView
+        android:id="@+id/tvPointInfo"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="4dp"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:maxLines="2"
+        android:textColor="@color/text_primary"
+        android:textSize="11sp" />
+
+    <!-- 显示按钮 -->
+    <ImageButton
+        android:id="@+id/btnShowPoint"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="显示"
+        android:src="@android:drawable/ic_menu_view"
+        android:tint="@color/text_secondary" />
+
+    <!-- 调整按钮 -->
+    <ImageButton
+        android:id="@+id/btnEditPoint"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="调整"
+        android:src="@android:drawable/ic_menu_edit"
+        android:tint="@color/text_secondary" />
+
+    <!-- 删除按钮 -->
+    <ImageButton
+        android:id="@+id/btnDeletePoint"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="删除"
+        android:src="@android:drawable/ic_menu_delete"
+        android:tint="#F44336" />
+
+</LinearLayout>

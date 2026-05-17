@@ -122,6 +122,14 @@ class MainActivity : AppCompatActivity() {
     }
     
     /**
+     * 按返回键时移到后台而非销毁，保持无障碍服务和悬浮窗
+     */
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        moveTaskToBack(true)
+    }
+    
+    /**
      * 设置点位列表
      */
     private fun setupPointList() {
@@ -512,11 +520,8 @@ class MainActivity : AppCompatActivity() {
     }
     
     /**
-     * 显示加载方案对话框（支持预设方案和我的方案）
-     */
-    
-    /**
      * 显示加载方案对话框（支持预设日常方案和我的方案）
+     * v2.0 简化：只有一个"完整日常"子方案，去掉多选框逻辑
      */
     private fun showLoadDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_load_scheme, null)
@@ -529,7 +534,6 @@ class MainActivity : AppCompatActivity() {
         // 获取分辨率和我的方案
         val (screenWidth, screenHeight) = settingsManager.getResolution()
         val mySchemes = settingsManager.getAllSchemes()
-        val subSchemes = PresetSchemes.getSubSchemes()
         
         // 创建对话框
         val dialog = AlertDialog.Builder(this)
@@ -537,54 +541,11 @@ class MainActivity : AppCompatActivity() {
             .setNegativeButton(getString(R.string.cancel), null)
             .create()
         
-        // 默认勾选完整日常（即全选）
-        val checkboxStates = mutableMapOf<String, Boolean>()
-        subSchemes.forEach { checkboxStates[it.id] = true }
-        
-        // 创建多选框列表
-        val checkboxes = mutableMapOf<String, android.widget.CheckBox>()
-        for (subScheme in subSchemes) {
-            val checkBox = android.widget.CheckBox(this).apply {
-                text = "${subScheme.name}：${subScheme.desc}"
-                isChecked = true
-                setTextColor(getColor(R.color.text_primary))
-            }
-            checkboxes[subScheme.id] = checkBox
-            layoutDailyScheme.addView(checkBox)
-        }
-        
-        // 完整日常=全选/取消全选
-        val completeCb = checkboxes["complete"]!!
-        val individualIds = listOf("base", "rewards", "credit", "farm16", "friend")
-        
-        fun updateFromComplete(isChecked: Boolean) {
-            for (id in individualIds) {
-                checkboxes[id]?.isChecked = isChecked
-                checkboxStates[id] = isChecked
-            }
-        }
-        
-        fun updateCompleteFromIndividual() {
-            val allChecked = individualIds.all { checkboxStates[it] == true }
-            completeCb.setOnCheckedChangeListener(null)
-            completeCb.isChecked = allChecked
-            checkboxStates["complete"] = allChecked
-            completeCb.setOnCheckedChangeListener { _, checked ->
-                checkboxStates["complete"] = checked
-                updateFromComplete(checked)
-            }
-        }
-        
-        completeCb.setOnCheckedChangeListener { _, isChecked ->
-            checkboxStates["complete"] = isChecked
-            updateFromComplete(isChecked)
-        }
-        
-        for (id in individualIds) {
-            checkboxes[id]?.setOnCheckedChangeListener { _, isChecked ->
-                checkboxStates[id] = isChecked
-                updateCompleteFromIndividual()
-            }
+        // 速度模式选择
+        val rgSpeedMode = dialogView.findViewById<android.widget.RadioGroup>(R.id.rgSpeedMode)
+        var speedMode = "normal"
+        rgSpeedMode.setOnCheckedChangeListener { _, checkedId ->
+            speedMode = if (checkedId == R.id.rbFast) "fast" else "normal"
         }
         
         // 我的方案适配器
@@ -592,8 +553,6 @@ class MainActivity : AppCompatActivity() {
             schemes = mySchemes,
             onItemClick = { scheme ->
                 floatingService?.loadScheme(scheme)
-                // 【优化4】加载方案后只显示摘要，不展开列表
-                // refreshPointList()会根据点位数量自动决定是否显示列表
                 refreshPointList()
                 Toast.makeText(this@MainActivity, 
                     "已加载: ${scheme.name} (${scheme.points.size}个点位)", 
@@ -624,11 +583,7 @@ class MainActivity : AppCompatActivity() {
                         // 我的方案
                         layoutDailyScheme.visibility = View.GONE
                         rvSchemes.visibility = View.VISIBLE
-                        if (mySchemes.isEmpty()) {
-                            tvEmptyHint.visibility = View.VISIBLE
-                        } else {
-                            tvEmptyHint.visibility = View.GONE
-                        }
+                        tvEmptyHint.visibility = if (mySchemes.isEmpty()) View.VISIBLE else View.GONE
                     }
                 }
             }
@@ -639,15 +594,9 @@ class MainActivity : AppCompatActivity() {
         
         // 加载日常方案按钮
         btnLoadDaily.setOnClickListener {
-            val selectedIds = checkboxStates.filter { it.value }.keys.toList()
-            if (selectedIds.isEmpty()) {
-                Toast.makeText(this@MainActivity, "请至少选择一个子方案", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            
-            val scheme = PresetSchemes.buildDailyScheme(selectedIds, screenWidth, screenHeight)
+            val scheme = PresetSchemes.buildDailyScheme(listOf("daily"), screenWidth, screenHeight, speedMode)
             if (scheme.points.isEmpty()) {
-                Toast.makeText(this@MainActivity, "所选子方案没有有效的点击点位", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@MainActivity, "方案没有有效的点击点位", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
             
@@ -655,7 +604,7 @@ class MainActivity : AppCompatActivity() {
             refreshPointList()
             val clickCount = scheme.points.count { it.type != OperationType.WAIT }
             Toast.makeText(this@MainActivity, 
-                "已加载日常方案\n包含${selectedIds.size}个子方案，共${clickCount}个点击步骤", 
+                "已加载日常方案，共${clickCount}个点击步骤", 
                 Toast.LENGTH_SHORT).show()
             dialog.dismiss()
         }
