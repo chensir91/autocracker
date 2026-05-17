@@ -40,6 +40,7 @@ import com.autoclicker.arknights.data.OperationType
 import com.autoclicker.arknights.data.SettingsManager
 import com.autoclicker.arknights.ui.DraggableFrameLayout
 import com.autoclicker.arknights.ui.MainActivity
+import com.autoclicker.arknights.ui.PointListAdapter
 import com.autoclicker.arknights.ui.RecordingOverlayView
 import com.autoclicker.arknights.util.ClickUtils
 import kotlin.random.Random
