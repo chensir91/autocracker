@@ -1306,9 +1306,9 @@ class FloatingWindowService : Service() {
                 // 删除点位
                 if (position in 0 until recordedPoints.size) {
                     recordedPoints.removeAt(position)
-                    // 重新编号
-                    recordedPoints.forEachIndexed { idx, p ->
-                        p.order = idx + 1
+                    // 重新编号，使用copy()创建新实例
+                    for (i in recordedPoints.indices) {
+                        recordedPoints[i] = recordedPoints[i].copy(order = i + 1)
                     }
                     pointListAdapter?.removePoint(position)
                     onPointsChanged?.invoke(recordedPoints.size)
@@ -1411,13 +1411,11 @@ class FloatingWindowService : Service() {
                     }
                 }
                 MotionEvent.ACTION_UP -> {
-                    // 更新点位坐标
+                    // 更新点位坐标，使用copy()创建新实例
                     val newX = event.rawX.toInt() + 25f
                     val newY = event.rawY.toInt() + 25f
                     if (adjustingPointPosition in 0 until recordedPoints.size) {
-                        val updatedPoint = recordedPoints[adjustingPointPosition]
-                        updatedPoint.x = newX
-                        updatedPoint.y = newY
+                        recordedPoints[adjustingPointPosition] = recordedPoints[adjustingPointPosition].copy(x = newX, y = newY)
                         onPointsChanged?.invoke(recordedPoints.size)
                     }
                     hideAdjustMarker()
