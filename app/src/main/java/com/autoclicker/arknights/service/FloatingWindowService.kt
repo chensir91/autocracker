@@ -1291,18 +1291,18 @@ class FloatingWindowService : Service() {
         // 设置适配器
         pointListAdapter = PointListAdapter(
             points = recordedPoints,
-            onShowClick = { position, point ->
+            onShowClick = { position: Int, point: ClickPoint ->
                 // 切换高亮点位显示
                 pointListAdapter?.highlightedPosition = position
                 pointListAdapter?.notifyDataSetChanged()
                 updateOverlayHighlight(position)
             },
-            onEditClick = { position, point ->
+            onEditClick = { position: Int, point: ClickPoint ->
                 // 进入调整模式
                 hidePointListPanel()
                 showAdjustMarker(position, point)
             },
-            onDeleteClick = { position ->
+            onDeleteClick = { position: Int ->
                 // 删除点位
                 if (position in 0 until recordedPoints.size) {
                     recordedPoints.removeAt(position)
