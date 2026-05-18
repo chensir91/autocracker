@@ -1040,7 +1040,9 @@ class FloatingWindowService : Service() {
     private fun showRecordingMiniWindow() {
         if (recordingMiniView != null) return
         
-        recordingMiniView = LayoutInflater.from(this).inflate(R.layout.layout_recording_mini, null)
+        val view = LayoutInflater.from(this).inflate(R.layout.layout_recording_mini, null)
+        if (view == null) return
+        recordingMiniView = view
         
         val windowType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -1062,15 +1064,15 @@ class FloatingWindowService : Service() {
         }
         
         // 使用DraggableFrameLayout的拖动功能
-        val draggableContainer = recordingMiniView!!.findViewById<DraggableFrameLayout>(R.id.draggableContainer)
+        val draggableContainer = view.findViewById<DraggableFrameLayout>(R.id.draggableContainer) ?: return
         draggableContainer.onDrag = { dx, dy ->
             recordingMiniParams?.x = (recordingMiniParams?.x ?: 0) + dx.toInt()
             recordingMiniParams?.y = (recordingMiniParams?.y ?: 0) + dy.toInt()
-            recordingMiniParams?.let { windowManager.updateViewLayout(recordingMiniView, it) }
+            recordingMiniParams?.let { windowManager.updateViewLayout(view, it) }
         }
         
         // 停止按钮点击事件
-        recordingMiniView!!.findViewById<ImageButton>(R.id.btnStopRecording).setOnClickListener {
+        view.findViewById<ImageButton>(R.id.btnStopRecording)?.setOnClickListener {
             // 停止录制
             toggleRecording()
         }
@@ -1081,7 +1083,7 @@ class FloatingWindowService : Service() {
         
         // 显示录制缩小视图
         try {
-            windowManager.addView(recordingMiniView, recordingMiniParams)
+            windowManager.addView(view, recordingMiniParams)
         } catch (e: Exception) {
             Log.e(TAG, "Error showing recording mini window", e)
         }
