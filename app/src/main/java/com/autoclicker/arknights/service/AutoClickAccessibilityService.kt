@@ -41,13 +41,17 @@ class AutoClickAccessibilityService : AccessibilityService() {
     }
     
     override fun onServiceConnected() {
-        super.onServiceConnected()
-        instance = this
-        Log.d(TAG, "Service connected")
-        
-        // 服务配置已通过XML完成，这里只做日志记录
-        val info = serviceInfo
-        Log.d(TAG, "Service configured: ${info?.feedbackType}")
+        try {
+            super.onServiceConnected()
+            instance = this
+            Log.d(TAG, "Service connected")
+            
+            // 服务配置已通过XML完成，这里只做日志记录
+            val info = serviceInfo
+            Log.d(TAG, "Service configured: ${info?.feedbackType}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in onServiceConnected", e)
+        }
     }
     
     override fun onAccessibilityEvent(event: android.view.accessibility.AccessibilityEvent?) {

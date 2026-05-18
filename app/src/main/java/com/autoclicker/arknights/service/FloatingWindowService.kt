@@ -1266,72 +1266,70 @@ class FloatingWindowService : Service() {
     fun showPointListPanel() {
         if (pointListPanel != null) return
         
-        val panelView = LayoutInflater.from(this).inflate(R.layout.layout_point_list_panel, null)
-        
-        val windowType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        } else {
-            @Suppress("DEPRECATION")
-            WindowManager.LayoutParams.TYPE_PHONE
-        }
-        
-        val screenWidth = resources.displayMetrics.widthPixels
-        
-        pointListParams = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
-            windowType,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.END or Gravity.TOP
-            x = 0
-            y = 0
-        }
-        
-        // 设置适配器
-        pointListAdapter = PointListAdapter(
-            points = recordedPoints,
-            onShowClick = { position: Int, point: ClickPoint ->
-                // 切换高亮点位显示
-                pointListAdapter?.highlightedPosition = position
-                pointListAdapter?.notifyDataSetChanged()
-                updateOverlayHighlight(position)
-            },
-            onEditClick = { position: Int, point: ClickPoint ->
-                // 进入调整模式
-                hidePointListPanel()
-                showAdjustMarker(position, point)
-            },
-            onDeleteClick = { position: Int ->
-                // 删除点位
-                if (position in 0 until recordedPoints.size) {
-                    recordedPoints.removeAt(position)
-                    // 重新编号，使用copy()创建新实例
-                    for (i in recordedPoints.indices) {
-                        recordedPoints[i] = recordedPoints[i].copy(order = i + 1)
-                    }
-                    pointListAdapter?.removePoint(position)
-                    onPointsChanged?.invoke(recordedPoints.size)
-                }
-            }
-        )
-        
-        val rvPointList = panelView.findViewById<RecyclerView>(R.id.rvPointList)
-        rvPointList.layoutManager = LinearLayoutManager(this)
-        rvPointList.adapter = pointListAdapter
-        
-        // 空提示
-        val tvEmpty = panelView.findViewById<TextView>(R.id.tvPointListEmpty)
-        tvEmpty.visibility = if (recordedPoints.isEmpty()) View.VISIBLE else View.GONE
-        rvPointList.visibility = if (recordedPoints.isEmpty()) View.GONE else View.VISIBLE
-        
-        // 关闭按钮
-        panelView.findViewById<ImageButton>(R.id.btnClosePointList).setOnClickListener {
-            hidePointListPanel()
-        }
-        
         try {
+            val panelView = LayoutInflater.from(this).inflate(R.layout.layout_point_list_panel, null) ?: return
+            
+            val windowType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+            }
+            
+            pointListParams = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                windowType,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.END or Gravity.TOP
+                x = 0
+                y = 0
+            }
+            
+            // 设置适配器
+            pointListAdapter = PointListAdapter(
+                points = recordedPoints,
+                onShowClick = { position: Int, point: ClickPoint ->
+                    // 切换高亮点位显示
+                    pointListAdapter?.highlightedPosition = position
+                    pointListAdapter?.notifyDataSetChanged()
+                    updateOverlayHighlight(position)
+                },
+                onEditClick = { position: Int, point: ClickPoint ->
+                    // 进入调整模式
+                    hidePointListPanel()
+                    showAdjustMarker(position, point)
+                },
+                onDeleteClick = { position: Int ->
+                    // 删除点位
+                    if (position in 0 until recordedPoints.size) {
+                        recordedPoints.removeAt(position)
+                        // 重新编号，使用copy()创建新实例
+                        for (i in recordedPoints.indices) {
+                            recordedPoints[i] = recordedPoints[i].copy(order = i + 1)
+                        }
+                        pointListAdapter?.removePoint(position)
+                        onPointsChanged?.invoke(recordedPoints.size)
+                    }
+                }
+            )
+            
+            val rvPointList = panelView.findViewById<RecyclerView>(R.id.rvPointList) ?: return
+            rvPointList.layoutManager = LinearLayoutManager(this)
+            rvPointList.adapter = pointListAdapter
+            
+            // 空提示
+            val tvEmpty = panelView.findViewById<TextView>(R.id.tvPointListEmpty)
+            tvEmpty?.visibility = if (recordedPoints.isEmpty()) View.VISIBLE else View.GONE
+            rvPointList.visibility = if (recordedPoints.isEmpty()) View.GONE else View.VISIBLE
+            
+            // 关闭按钮
+            panelView.findViewById<ImageButton>(R.id.btnClosePointList)?.setOnClickListener {
+                hidePointListPanel()
+            }
+            
             windowManager.addView(panelView, pointListParams)
             pointListPanel = panelView
             isPointListVisible = true
