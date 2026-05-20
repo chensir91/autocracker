@@ -1269,7 +1269,9 @@ class FloatingWindowService : Service() {
         if (pointListPanel != null) return
         
         try {
-            val panelView = LayoutInflater.from(this).inflate(R.layout.layout_point_list_panel, null) ?: return
+            // Service没有Activity主题，用ContextThemeWrapper包装以确保?attr/可解析
+            val ctx = android.view.ContextThemeWrapper(this, R.style.Theme_ArknightsAutoClicker)
+            val panelView = LayoutInflater.from(ctx).inflate(R.layout.layout_point_list_panel, null) ?: return
             
             val windowType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
