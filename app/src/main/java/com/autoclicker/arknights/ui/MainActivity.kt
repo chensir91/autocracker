@@ -483,6 +483,10 @@ class MainActivity : AppCompatActivity() {
         binding.btnLoad.setOnClickListener {
             showLoadDialog()
         }
+        
+        binding.btnExport.setOnClickListener {
+            exportPoints()
+        }
     }
     
     /**
@@ -610,5 +614,62 @@ class MainActivity : AppCompatActivity() {
         }
         
         dialog.show()
+    }
+    
+    /**
+     * 导出点位数据
+     * 支持复制到剪贴板或分享
+     */
+    private fun exportPoints() {
+        val points = floatingService?.getRecordedPoints() ?: emptyList()
+        if (points.isEmpty()) {
+            Toast.makeText(this, "暂无点位可导出", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        val (screenWidth, screenHeight) = settingsManager.getResolution()
+        
+        // 构建导出数据
+        val sb = StringBuilder()
+        sb.append("{\n")
+        sb.append("  \"name\": \"录制方案\",\n")
+        sb.append("  \"screenWidth\": $screenWidth,\n")
+        sb.append("  \"screenHeight\": $screenHeight,\n")
+        sb.append("  \"points\": [\n")
+        points.forEachIndexed { index, p ->
+            sb.append("    {\"order\": ${p.order}, \"type\": \"${p.type.name}\", \"x\": ${p.x}, \"y\": ${p.y}, \"duration\": ${p.duration}")
+            if (p.type == OperationType.SWIPE || p.type == OperationType.LONG_PRESS_DRAG) {
+                sb.append(", \"endX\": ${p.endX}, \"endY\": ${p.endY}")
+            }
+            sb.append("}")
+            if (index < points.size - 1) sb.append(",")
+            sb.append("\n")
+        }
+        sb.append("  ]\n")
+        sb.append("}")
+        val json = sb.toString()
+        
+        val options = arrayOf("复制到剪贴板", "系统分享")
+        
+        AlertDialog.Builder(this)
+            .setTitle("导出点位")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> {
+                        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        val clip = android.content.ClipData.newPlainText("点位数据", json)
+                        clipboard.setPrimaryClip(clip)
+                        Toast.makeText(this, "已复制到剪贴板", Toast.LENGTH_SHORT).show()
+                    }
+                    1 -> {
+                        val intent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, json)
+                        }
+                        startActivity(Intent.createChooser(intent, "分享点位数据"))
+                    }
+                }
+            }
+            .show()
     }
 }
