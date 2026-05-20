@@ -80,7 +80,7 @@
     
     <!-- 权限提示 -->
     <string name="permission_required">需要权限</string>
-    <string name="accessibility_permission_hint">请开启无障碍服务以使用自动点击功能</string>
+    <string name="accessibility_permission_hint">请开启无障碍服务以使用自动点击功能\n提示：划掉后台可能导致权限丢失，请在最近任务中锁定本应用</string>
     <string name="overlay_permission_hint">请开启悬浮窗权限以显示控制面板</string>
     
     <!-- 其他 -->

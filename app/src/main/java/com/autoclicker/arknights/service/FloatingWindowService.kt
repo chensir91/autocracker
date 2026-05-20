@@ -81,6 +81,8 @@ class FloatingWindowService : Service() {
     private var adjustingPointPosition = -1
     private var adjustMarker: AdjustPointMarker? = null
     private var adjustMarkerParams: WindowManager.LayoutParams? = null
+    private var pointMarker: View? = null  // 显示点位标记（不可拖动）
+    private var pointMarkerParams: WindowManager.LayoutParams? = null
     
     private val binder = LocalBinder()
     private val handler = Handler(Looper.getMainLooper())
@@ -166,6 +168,7 @@ class FloatingWindowService : Service() {
         hideClickFeedback()
         hidePointListPanel()  // 清理点列表面板
         hideAdjustMarker()  // 清理调整标记
+        hidePointMarker()   // 清理点位标记
         try {
             windowManager.removeView(floatingView)
         } catch (e: Exception) {
@@ -1296,10 +1299,10 @@ class FloatingWindowService : Service() {
             pointListAdapter = PointListAdapter(
                 points = recordedPoints,
                 onShowClick = { position: Int, point: ClickPoint ->
-                    // 切换高亮点位显示
+                    // 切换高亮点位显示：在屏幕上显示/隐藏绿点标记
                     pointListAdapter?.highlightedPosition = position
                     pointListAdapter?.notifyDataSetChanged()
-                    updateOverlayHighlight(position)
+                    showPointMarker(point)
                 },
                 onEditClick = { position: Int, point: ClickPoint ->
                     // 进入调整模式
@@ -1359,10 +1362,64 @@ class FloatingWindowService : Service() {
     }
     
     /**
-     * 更新overlay高亮显示
+     * 在屏幕上显示点位绿点标记（不可拖动）
+     * 再次点击同一个点位则隐藏
      */
-    private fun updateOverlayHighlight(position: Int) {
-        recordingOverlay?.highlightPointOrder = position
+    private fun showPointMarker(point: ClickPoint) {
+        if (point.x <= 0 && point.y <= 0) {
+            hidePointMarker()
+            return
+        }
+        
+        // 如果已经有标记在显示同一个位置，则隐藏
+        if (pointMarker != null) {
+            hidePointMarker()
+            return
+        }
+        
+        val marker = AdjustPointMarker(this).apply {
+            setPoint(point)
+        }
+        
+        val windowType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
+        
+        pointMarkerParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            windowType,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = point.x.toInt() - 25
+            y = point.y.toInt() - 25
+        }
+        
+        try {
+            windowManager.addView(marker, pointMarkerParams)
+            pointMarker = marker
+        } catch (e: Exception) {
+            Log.e(TAG, "Error showing point marker", e)
+        }
+    }
+    
+    /**
+     * 隐藏点位标记
+     */
+    private fun hidePointMarker() {
+        pointMarker?.let {
+            try {
+                windowManager.removeView(it)
+            } catch (e: Exception) {}
+        }
+        pointMarker = null
+        pointMarkerParams = null
     }
     
     /**
@@ -1429,7 +1486,7 @@ class FloatingWindowService : Service() {
         
         try {
             windowManager.addView(adjustMarker, adjustMarkerParams)
-            Toast.makeText(this, "拖动红点到新位置后松开", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "拖动绿点到新位置后松开", Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
             Log.e(TAG, "Error showing adjust marker", e)
             isAdjustingPoint = false
@@ -1458,13 +1515,13 @@ class FloatingWindowService : Service() {
     class AdjustPointMarker(context: Context) : View(context) {
         
         private val fillPaint = Paint().apply {
-            color = Color.RED
+            color = Color.argb(80, 76, 175, 80)  // 半透明淡绿色，和录制点位一致
             style = Paint.Style.FILL
             isAntiAlias = true
         }
         
         private val strokePaint = Paint().apply {
-            color = Color.WHITE
+            color = Color.argb(180, 76, 175, 80)  // 绿色描边
             style = Paint.Style.STROKE
             strokeWidth = 4f
             isAntiAlias = true
