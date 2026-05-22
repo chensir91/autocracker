@@ -1424,6 +1424,7 @@ class FloatingWindowService : Service() {
     
     /**
      * 显示点位调整标记
+     * 拖动绿点到新位置后点确认按钮
      */
     @SuppressLint("ClickableViewAccessibility")
     private fun showAdjustMarker(position: Int, point: ClickPoint) {
@@ -1458,7 +1459,7 @@ class FloatingWindowService : Service() {
             y = point.y.toInt() - 25
         }
         
-        // 触摸拖动
+        // 触摸拖动，松手不确认，等点确认按钮
         adjustMarker?.setOnTouchListener { view, event ->
             when (event.action) {
                 MotionEvent.ACTION_MOVE -> {
@@ -1470,27 +1471,103 @@ class FloatingWindowService : Service() {
                         } catch (e: Exception) {}
                     }
                 }
-                MotionEvent.ACTION_UP -> {
-                    // 更新点位坐标，使用copy()创建新实例
-                    val newX = event.rawX.toInt() + 25f
-                    val newY = event.rawY.toInt() + 25f
-                    if (adjustingPointPosition in 0 until recordedPoints.size) {
-                        recordedPoints[adjustingPointPosition] = recordedPoints[adjustingPointPosition].copy(x = newX, y = newY)
-                        onPointsChanged?.invoke(recordedPoints.size)
-                    }
-                    hideAdjustMarker()
-                }
             }
             true
         }
         
         try {
             windowManager.addView(adjustMarker, adjustMarkerParams)
-            Toast.makeText(this, "拖动绿点到新位置后松开", Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
             Log.e(TAG, "Error showing adjust marker", e)
             isAdjustingPoint = false
+            return
         }
+        
+        // 显示确认按钮
+        showAdjustConfirmButton(windowType)
+        
+        Toast.makeText(this, "拖动绿点到新位置后点确定", Toast.LENGTH_LONG).show()
+    }
+    
+    /**
+     * 显示调整确认按钮
+     */
+    private var adjustConfirmView: View? = null
+    private var adjustConfirmParams: WindowManager.LayoutParams? = null
+    
+    @SuppressLint("ClickableViewAccessibility")
+    private fun showAdjustConfirmButton(windowType: Int) {
+        // 创建确认按钮布局
+        val btnLayout = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setBackgroundColor(android.graphics.Color.argb(200, 76, 175, 80))
+            setPadding(24, 16, 24, 16)
+        }
+        
+        val confirmBtn = android.widget.TextView(this).apply {
+            text = "✓ 确定"
+            setTextColor(android.graphics.Color.WHITE)
+            textSize = 16f
+            setPadding(16, 12, 16, 12)
+            setBackgroundColor(android.graphics.Color.argb(180, 56, 142, 60))
+        }
+        
+        val cancelBtn = android.widget.TextView(this).apply {
+            text = "✕ 取消"
+            setTextColor(android.graphics.Color.WHITE)
+            textSize = 14f
+            setPadding(16, 8, 16, 8)
+            setBackgroundColor(android.graphics.Color.argb(120, 158, 158, 158))
+        }
+        
+        btnLayout.addView(confirmBtn)
+        btnLayout.addView(cancelBtn)
+        
+        adjustConfirmParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            windowType,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            y = 200
+        }
+        
+        confirmBtn.setOnClickListener {
+            // 确认：读取绿点当前位置，更新点位坐标
+            adjustMarkerParams?.let { params ->
+                val newX = params.x + 25f
+                val newY = params.y + 25f
+                if (adjustingPointPosition in 0 until recordedPoints.size) {
+                    recordedPoints[adjustingPointPosition] = recordedPoints[adjustingPointPosition].copy(x = newX, y = newY)
+                    onPointsChanged?.invoke(recordedPoints.size)
+                    Toast.makeText(this@FloatingWindowService, "坐标已更新", Toast.LENGTH_SHORT).show()
+                }
+            }
+            hideAdjustMarker()
+        }
+        
+        cancelBtn.setOnClickListener {
+            hideAdjustMarker()
+        }
+        
+        try {
+            windowManager.addView(btnLayout, adjustConfirmParams)
+            adjustConfirmView = btnLayout
+        } catch (e: Exception) {
+            Log.e(TAG, "Error showing confirm button", e)
+        }
+    }
+    
+    private fun hideAdjustConfirmButton() {
+        adjustConfirmView?.let {
+            try {
+                windowManager.removeView(it)
+            } catch (e: Exception) {}
+        }
+        adjustConfirmView = null
+        adjustConfirmParams = null
     }
     
     /**
@@ -1506,6 +1583,7 @@ class FloatingWindowService : Service() {
         adjustMarkerParams = null
         isAdjustingPoint = false
         adjustingPointPosition = -1
+        hideAdjustConfirmButton()
     }
     
     /**
