@@ -134,6 +134,13 @@ class RecordingOverlayView(context: Context) : View(context) {
         isAntiAlias = true
     }
     
+    // 所有点位中心小红点 - 半透明红色
+    private val redDotPaint = Paint().apply {
+        color = Color.argb(180, 244, 67, 54)  // 半透明红色
+        style = Paint.Style.FILL
+        isAntiAlias = true
+    }
+    
     private val textPaint = Paint().apply {
         color = Color.WHITE
         textSize = 32f
@@ -281,6 +288,32 @@ class RecordingOverlayView(context: Context) : View(context) {
                 }
                 OperationType.WAIT_PIXEL, OperationType.MULTI_CLICK -> {
                     // 暂不支持显示
+                }
+            }
+        }
+        
+        // 【新增】绘制所有有坐标点位中心的小红点
+        for (point in recordedPoints) {
+            // 只绘制有坐标的点位（x>0, y>0）
+            if (point.x > 0 && point.y > 0) {
+                // SWIPE和LONG_PRESS_DRAG类型绘制起点和终点
+                when (point.type) {
+                    OperationType.SWIPE -> {
+                        canvas.drawCircle(drawX(point.x), drawY(point.y), 6f, redDotPaint)
+                        if (point.endX > 0 && point.endY > 0) {
+                            canvas.drawCircle(drawX(point.endX), drawY(point.endY), 6f, redDotPaint)
+                        }
+                    }
+                    OperationType.LONG_PRESS_DRAG -> {
+                        canvas.drawCircle(drawX(point.x), drawY(point.y), 6f, redDotPaint)
+                        if (point.endX > 0 && point.endY > 0) {
+                            canvas.drawCircle(drawX(point.endX), drawY(point.endY), 6f, redDotPaint)
+                        }
+                    }
+                    else -> {
+                        // CLICK、LONG_PRESS等类型绘制中心点
+                        canvas.drawCircle(drawX(point.x), drawY(point.y), 6f, redDotPaint)
+                    }
                 }
             }
         }

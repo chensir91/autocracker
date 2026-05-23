@@ -46,7 +46,8 @@
         android:background="@null"
         android:contentDescription="调整"
         android:src="@android:drawable/ic_menu_edit"
-        android:tint="#757575" />
+        android:tint="#757575"
+        android:visibility="gone" />
 
     <!-- 删除按钮 -->
     <ImageButton
@@ -56,6 +57,46 @@
         android:background="@null"
         android:contentDescription="删除"
         android:src="@android:drawable/ic_menu_delete"
-        android:tint="#F44336" />
+        android:tint="#F44336"
+        android:visibility="gone" />
+
+    <!-- 等待时长调整控件（仅WAIT类型被选中时显示） -->
+    <LinearLayout
+        android:id="@+id/waitDurationControls"
+        android:layout_width="wrap_content"
+        android:layout_height="32dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <ImageButton
+            android:id="@+id/btnDecreaseWait"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:background="#20000000"
+            android:contentDescription="减少"
+            android:src="@android:drawable/ic_media_previous"
+            android:tint="#757575" />
+
+        <TextView
+            android:id="@+id/tvWaitDuration"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp"
+            android:minWidth="40dp"
+            android:gravity="center"
+            android:textColor="#212121"
+            android:textSize="11sp" />
+
+        <ImageButton
+            android:id="@+id/btnIncreaseWait"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:background="#20000000"
+            android:contentDescription="增加"
+            android:src="@android:drawable/ic_media_next"
+            android:tint="#757575" />
+    </LinearLayout>
 
 </LinearLayout>

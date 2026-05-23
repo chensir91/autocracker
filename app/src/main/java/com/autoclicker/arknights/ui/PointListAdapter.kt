@@ -4,6 +4,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.autoclicker.arknights.R
@@ -15,12 +16,14 @@ import com.autoclicker.arknights.data.OperationType
  */
 class PointListAdapter(
     private val points: MutableList<ClickPoint>,
+    private val onItemClick: (Int, ClickPoint) -> Unit,
     private val onShowClick: (Int, ClickPoint) -> Unit,
     private val onEditClick: (Int, ClickPoint) -> Unit,
-    private val onDeleteClick: (Int) -> Unit
+    private val onDeleteClick: (Int) -> Unit,
+    private val onWaitDurationChange: (Int, ClickPoint, Long) -> Unit
 ) : RecyclerView.Adapter<PointListAdapter.ViewHolder>() {
 
-    // 当前高亮的点位序号（-1表示只显示最后一个）
+    // 当前高亮的点位序号（-1表示无选中）
     var highlightedPosition: Int = -1
 
     inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
@@ -29,6 +32,10 @@ class PointListAdapter(
         val btnShow: ImageButton = itemView.findViewById(R.id.btnShowPoint)
         val btnEdit: ImageButton = itemView.findViewById(R.id.btnEditPoint)
         val btnDelete: ImageButton = itemView.findViewById(R.id.btnDeletePoint)
+        val waitDurationControls: LinearLayout = itemView.findViewById(R.id.waitDurationControls)
+        val tvWaitDuration: TextView = itemView.findViewById(R.id.tvWaitDuration)
+        val btnDecreaseWait: ImageButton = itemView.findViewById(R.id.btnDecreaseWait)
+        val btnIncreaseWait: ImageButton = itemView.findViewById(R.id.btnIncreaseWait)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -75,20 +82,79 @@ class PointListAdapter(
         // 显示按钮状态
         holder.btnShow.alpha = if (isHighlighted) 1.0f else 0.6f
 
-        // 按钮点击
+        // 调整/删除按钮只在选中时显示
+        holder.btnEdit.visibility = if (isHighlighted) View.VISIBLE else View.GONE
+        holder.btnDelete.visibility = if (isHighlighted) View.VISIBLE else View.GONE
+
+        // WAIT类型选中时显示时长调整控件
+        val isWaitPoint = point.type == OperationType.WAIT
+        holder.waitDurationControls.visibility = if (isHighlighted && isWaitPoint) View.VISIBLE else View.GONE
+
+        if (isHighlighted && isWaitPoint) {
+            holder.tvWaitDuration.text = "${point.duration / 1000f}s"
+        }
+
+        // 点击item本身切换选中状态
+        holder.itemView.setOnClickListener {
+            val newHighlightPosition = if (highlightedPosition == position) -1 else position
+            val previousPosition = highlightedPosition
+            highlightedPosition = newHighlightPosition
+            
+            // 通知旧的和新的item更新
+            if (previousPosition >= 0) {
+                notifyItemChanged(previousPosition)
+            }
+            if (newHighlightPosition >= 0) {
+                notifyItemChanged(newHighlightPosition)
+            }
+            
+            // 通知外部选中状态变化
+            if (newHighlightPosition >= 0) {
+                onItemClick(newHighlightPosition, points[newHighlightPosition])
+            } else {
+                onItemClick(-1, point)
+            }
+        }
+
+        // 显示按钮点击
         holder.btnShow.setOnClickListener {
             // 切换高亮状态
-            highlightedPosition = if (highlightedPosition == position) -1 else position
-            notifyDataSetChanged()
+            val newHighlightPosition = if (highlightedPosition == position) -1 else position
+            val previousPosition = highlightedPosition
+            highlightedPosition = newHighlightPosition
+            
+            if (previousPosition >= 0) {
+                notifyItemChanged(previousPosition)
+            }
+            if (newHighlightPosition >= 0) {
+                notifyItemChanged(newHighlightPosition)
+            }
+            
             onShowClick(position, point)
         }
 
+        // 编辑按钮点击
         holder.btnEdit.setOnClickListener {
             onEditClick(position, point)
         }
 
+        // 删除按钮点击
         holder.btnDelete.setOnClickListener {
             onDeleteClick(position)
+        }
+
+        // 等待时长减少
+        holder.btnDecreaseWait.setOnClickListener {
+            val newDuration = (point.duration - 500).coerceAtLeast(500)
+            if (newDuration != point.duration) {
+                onWaitDurationChange(position, point, newDuration)
+            }
+        }
+
+        // 等待时长增加
+        holder.btnIncreaseWait.setOnClickListener {
+            val newDuration = point.duration + 500
+            onWaitDurationChange(position, point, newDuration)
         }
     }
 
@@ -110,6 +176,13 @@ class PointListAdapter(
                 highlightedPosition--
             }
             notifyDataSetChanged()
+        }
+    }
+
+    fun updatePointDuration(position: Int, newDuration: Long) {
+        if (position in 0 until points.size) {
+            points[position] = points[position].copy(duration = newDuration)
+            notifyItemChanged(position)
         }
     }
 }

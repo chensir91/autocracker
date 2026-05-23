@@ -1,16 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<com.autoclicker.arknights.ui.DraggableFrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/pointListPanel"
     android:layout_width="280dp"
     android:layout_height="match_parent"
-    android:background="#E6FFFFFF"
-    android:orientation="vertical">
+    android:background="#E6FFFFFF">
 
     <!-- 标题栏 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/primary"
+        android:background="#FF5722"
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:padding="12dp">
@@ -23,6 +22,16 @@
             android:textColor="@android:color/white"
             android:textSize="16sp"
             android:textStyle="bold" />
+
+        <ImageButton
+            android:id="@+id/btnUndoPoint"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginEnd="4dp"
+            android:background="@null"
+            android:contentDescription="撤回"
+            android:src="@android:drawable/ic_menu_revert"
+            android:tint="@android:color/white" />
 
         <ImageButton
             android:id="@+id/btnClosePointList"
@@ -40,16 +49,17 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center"
+        android:layout_gravity="center"
         android:padding="24dp"
         android:text="暂无点位"
-        android:textColor="@color/text_secondary"
+        android:textColor="#757575"
         android:visibility="gone" />
 
     <!-- 点位列表 -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rvPointList"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
+        android:layout_height="match_parent"
+        android:layout_marginTop="48dp" />
 
-</LinearLayout>
+</com.autoclicker.arknights.ui.DraggableFrameLayout>

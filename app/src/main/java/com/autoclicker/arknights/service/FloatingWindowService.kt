@@ -1284,7 +1284,7 @@ class FloatingWindowService : Service() {
             }
             
             pointListParams = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
+                280 * resources.displayMetrics.density.toInt(),
                 WindowManager.LayoutParams.MATCH_PARENT,
                 windowType,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
@@ -1298,6 +1298,14 @@ class FloatingWindowService : Service() {
             // 设置适配器
             pointListAdapter = PointListAdapter(
                 points = recordedPoints,
+                onItemClick = { position: Int, point: ClickPoint ->
+                    // 点击item切换选中：选中显示绿点，取消选中隐藏绿点
+                    if (position >= 0) {
+                        showPointMarker(point)
+                    } else {
+                        hidePointMarker()
+                    }
+                },
                 onShowClick = { position: Int, point: ClickPoint ->
                     // 切换高亮点位显示：在屏幕上显示/隐藏绿点标记
                     pointListAdapter?.highlightedPosition = position
@@ -1318,7 +1326,15 @@ class FloatingWindowService : Service() {
                             recordedPoints[i] = recordedPoints[i].copy(order = i + 1)
                         }
                         pointListAdapter?.removePoint(position)
+                        hidePointMarker()
                         onPointsChanged?.invoke(recordedPoints.size)
+                    }
+                },
+                onWaitDurationChange = { position: Int, point: ClickPoint, newDuration: Long ->
+                    // 修改等待时长
+                    if (position in 0 until recordedPoints.size) {
+                        recordedPoints[position] = point.copy(duration = newDuration)
+                        pointListAdapter?.updatePointDuration(position, newDuration)
                     }
                 }
             )
@@ -1335,6 +1351,25 @@ class FloatingWindowService : Service() {
             // 关闭按钮
             panelView.findViewById<ImageButton>(R.id.btnClosePointList)?.setOnClickListener {
                 hidePointListPanel()
+            }
+            
+            // 撤回按钮
+            panelView.findViewById<ImageButton>(R.id.btnUndoPoint)?.setOnClickListener {
+                undoLastPoint()
+                pointListAdapter?.updatePoints(recordedPoints)
+                // 更新空提示
+                tvEmpty?.visibility = if (recordedPoints.isEmpty()) View.VISIBLE else View.GONE
+                rvPointList.visibility = if (recordedPoints.isEmpty()) View.GONE else View.VISIBLE
+            }
+            
+            // 设置DraggableFrameLayout拖动支持
+            val draggablePanel = panelView.findViewById<DraggableFrameLayout>(R.id.pointListPanel)
+            draggablePanel?.onDrag = { dx, dy ->
+                pointListParams?.let { params ->
+                    params.x -= dx.toInt()
+                    params.y += dy.toInt()
+                    windowManager.updateViewLayout(panelView, params)
+                }
             }
             
             windowManager.addView(panelView, pointListParams)
@@ -1359,6 +1394,10 @@ class FloatingWindowService : Service() {
         pointListPanel = null
         pointListParams = null
         isPointListVisible = false
+        // 关闭面板时也隐藏点位标记
+        hidePointMarker()
+        // 重置选中状态
+        pointListAdapter?.highlightedPosition = -1
     }
     
     /**
