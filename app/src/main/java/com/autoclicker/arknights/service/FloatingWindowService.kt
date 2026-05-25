@@ -75,7 +75,7 @@ class FloatingWindowService : Service() {
     private var pointListParams: WindowManager.LayoutParams? = null
     private var pointListAdapter: PointListAdapter? = null
     private var isPointListVisible = false
-    
+    private var savedScrollPosition = 0  // 保存列表滚动位置
     // 点位调整模式
     private var isAdjustingPoint = false
     private var adjustingPointPosition = -1
@@ -95,6 +95,14 @@ class FloatingWindowService : Service() {
     private var isMinimized = false
     private var isMiniHidden = false  // 最小化悬浮窗是否被隐藏到边缘
     private val recordedPoints = mutableListOf<ClickPoint>()
+    
+    // 操作历史栈，用于撤回操作
+    private sealed class PointAction {
+        data class Added(val point: ClickPoint) : PointAction()
+        data class Deleted(val point: ClickPoint, val position: Int) : PointAction()
+        data class Modified(val oldPoint: ClickPoint, val position: Int) : PointAction()
+    }
+    private val actionHistory = mutableListOf<PointAction>()
     private var clickThread: Thread? = null
     
     // 设置
@@ -112,6 +120,13 @@ class FloatingWindowService : Service() {
     // 回调接口
     var onStateChanged: ((State) -> Unit)? = null
     var onPointsChanged: ((Int) -> Unit)? = null
+    
+    /**
+     * 同步录制overlay的点位数据，确保小红点等显示与recordedPoints一致
+     */
+    private fun syncOverlayPoints() {
+        recordingOverlay?.setPoints(recordedPoints)
+    }
     var onRecordingPoint: ((ClickPoint) -> Unit)? = null
     
     
@@ -510,6 +525,7 @@ class FloatingWindowService : Service() {
         updateButtonStates()
         onStateChanged?.invoke(if (isRecording) State.RECORDING else State.IDLE)
         onPointsChanged?.invoke(recordedPoints.size)
+        syncOverlayPoints()
         Toast.makeText(
             this,
             if (isRecording) getString(R.string.status_recording) else getString(R.string.status_idle),
@@ -526,16 +542,83 @@ class FloatingWindowService : Service() {
             recordedPoints.add(point)
             onRecordingPoint?.invoke(point)
             onPointsChanged?.invoke(recordedPoints.size)
+        syncOverlayPoints()
         }
     }
     
     /**
-     * 撤销最后一个点位
+     * 撤销最后一次操作（删除/修改坐标/修改时长）
+     */
+    fun undoLastAction() {
+        if (actionHistory.isEmpty()) {
+            // 没有操作历史时，回退到删除最后一个点位
+            if (recordedPoints.isNotEmpty()) {
+                recordedPoints.removeAt(recordedPoints.size - 1)
+                onPointsChanged?.invoke(recordedPoints.size)
+        syncOverlayPoints()
+                Toast.makeText(this, "已撤销最后一个点位", Toast.LENGTH_SHORT).show()
+                recordingOverlay?.setPoints(recordedPoints)
+                // 更新列表面板
+                pointListAdapter?.updatePoints(recordedPoints)
+            } else {
+                Toast.makeText(this, "没有可撤销的操作", Toast.LENGTH_SHORT).show()
+            }
+            return
+        }
+        
+        when (val action = actionHistory.removeAt(actionHistory.size - 1)) {
+            is PointAction.Deleted -> {
+                // 恢复被删除的点位
+                val insertPos = action.position.coerceAtMost(recordedPoints.size)
+                recordedPoints.add(insertPos, action.point)
+                // 重新编号
+                for (i in recordedPoints.indices) {
+                    recordedPoints[i] = recordedPoints[i].copy(order = i + 1)
+                }
+                onPointsChanged?.invoke(recordedPoints.size)
+        syncOverlayPoints()
+                pointListAdapter?.updatePoints(recordedPoints)
+                Toast.makeText(this, "已恢复删除的点位 #${action.point.order}", Toast.LENGTH_SHORT).show()
+            }
+            is PointAction.Modified -> {
+                // 恢复修改前的点位
+                if (action.position in 0 until recordedPoints.size) {
+                    recordedPoints[action.position] = action.oldPoint
+                    onPointsChanged?.invoke(recordedPoints.size)
+        syncOverlayPoints()
+                    pointListAdapter?.updatePoints(recordedPoints)
+                    Toast.makeText(this, "已恢复点位 #${action.oldPoint.order} 的修改", Toast.LENGTH_SHORT).show()
+                }
+            }
+            is PointAction.Added -> {
+                // 撤销添加的点位（录制时的撤回）
+                if (recordedPoints.isNotEmpty()) {
+                    recordedPoints.removeAt(recordedPoints.size - 1)
+                    onPointsChanged?.invoke(recordedPoints.size)
+        syncOverlayPoints()
+                    pointListAdapter?.updatePoints(recordedPoints)
+                    Toast.makeText(this, "已撤销添加的点位", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        recordingOverlay?.setPoints(recordedPoints)
+        // 更新列表面板的空提示
+        pointListPanel?.let { panel ->
+            val tvEmpty = panel.findViewById<TextView>(R.id.tvPointListEmpty)
+            val rvList = panel.findViewById<RecyclerView>(R.id.rvPointList)
+            tvEmpty?.visibility = if (recordedPoints.isEmpty()) View.VISIBLE else View.GONE
+            rvList?.visibility = if (recordedPoints.isEmpty()) View.GONE else View.VISIBLE
+        }
+    }
+    
+    /**
+     * 撤销最后一个点位（录制时专用）
      */
     fun undoLastPoint() {
         if (recordedPoints.isNotEmpty()) {
             recordedPoints.removeAt(recordedPoints.size - 1)
             onPointsChanged?.invoke(recordedPoints.size)
+        syncOverlayPoints()
             Toast.makeText(this, "已撤销最后一个点位", Toast.LENGTH_SHORT).show()
             
             // 更新录制覆盖层
@@ -554,6 +637,7 @@ class FloatingWindowService : Service() {
             recordedPoints.add(point)
             onRecordingPoint?.invoke(point)
             onPointsChanged?.invoke(recordedPoints.size)
+        syncOverlayPoints()
             Toast.makeText(this, "已添加等待 ${durationMs}ms", Toast.LENGTH_SHORT).show()
         }
     }
@@ -567,6 +651,7 @@ class FloatingWindowService : Service() {
             recordedPoints.add(point)
             onRecordingPoint?.invoke(point)
             onPointsChanged?.invoke(recordedPoints.size)
+        syncOverlayPoints()
         }
     }
     
@@ -982,6 +1067,7 @@ class FloatingWindowService : Service() {
             onPointRecorded = { point ->
                 recordedPoints.add(point)
                 onPointsChanged?.invoke(recordedPoints.size)
+        syncOverlayPoints()
             }
             onPlaybackNeeded = lambda@{ x, y, type, duration, endX, endY ->
                 // WAIT 类型不需要回放，直接返回
@@ -995,6 +1081,7 @@ class FloatingWindowService : Service() {
                 if (recordedPoints.isNotEmpty()) {
                     recordedPoints.removeAt(recordedPoints.size - 1)
                     onPointsChanged?.invoke(recordedPoints.size)
+        syncOverlayPoints()
                 }
             }
             onFinishRecording = {
@@ -1230,6 +1317,7 @@ class FloatingWindowService : Service() {
         recordedPoints.clear()
         recordedPoints.addAll(scheme.points)
         onPointsChanged?.invoke(recordedPoints.size)
+        syncOverlayPoints()
         Toast.makeText(this, "已加载方案: ${scheme.name}", Toast.LENGTH_SHORT).show()
     }
     
@@ -1320,6 +1408,8 @@ class FloatingWindowService : Service() {
                 onDeleteClick = { position: Int ->
                     // 删除点位
                     if (position in 0 until recordedPoints.size) {
+                        val deletedPoint = recordedPoints[position]
+                        actionHistory.add(PointAction.Deleted(deletedPoint, position))
                         recordedPoints.removeAt(position)
                         // 重新编号，使用copy()创建新实例
                         for (i in recordedPoints.indices) {
@@ -1328,11 +1418,13 @@ class FloatingWindowService : Service() {
                         pointListAdapter?.removePoint(position)
                         hidePointMarker()
                         onPointsChanged?.invoke(recordedPoints.size)
+        syncOverlayPoints()
                     }
                 },
                 onWaitDurationChange = { position: Int, point: ClickPoint, newDuration: Long ->
                     // 修改等待时长
                     if (position in 0 until recordedPoints.size) {
+                        actionHistory.add(PointAction.Modified(recordedPoints[position], position))
                         recordedPoints[position] = point.copy(duration = newDuration)
                         pointListAdapter?.updatePointDuration(position, newDuration)
                     }
@@ -1342,6 +1434,11 @@ class FloatingWindowService : Service() {
             val rvPointList = panelView.findViewById<RecyclerView>(R.id.rvPointList) ?: return
             rvPointList.layoutManager = LinearLayoutManager(this)
             rvPointList.adapter = pointListAdapter
+            
+            // 恢复上次滚动位置
+            if (savedScrollPosition > 0) {
+                (rvPointList.layoutManager as? LinearLayoutManager)?.scrollToPositionWithOffset(savedScrollPosition, 0)
+            }
             
             // 空提示
             val tvEmpty = panelView.findViewById<TextView>(R.id.tvPointListEmpty)
@@ -1355,11 +1452,7 @@ class FloatingWindowService : Service() {
             
             // 撤回按钮
             panelView.findViewById<ImageButton>(R.id.btnUndoPoint)?.setOnClickListener {
-                undoLastPoint()
-                pointListAdapter?.updatePoints(recordedPoints)
-                // 更新空提示
-                tvEmpty?.visibility = if (recordedPoints.isEmpty()) View.VISIBLE else View.GONE
-                rvPointList.visibility = if (recordedPoints.isEmpty()) View.GONE else View.VISIBLE
+                undoLastAction()
             }
             
             // 设置DraggableFrameLayout拖动支持
@@ -1384,7 +1477,10 @@ class FloatingWindowService : Service() {
      * 隐藏点列表面板
      */
     fun hidePointListPanel() {
+        // 保存滚动位置
         pointListPanel?.let {
+            val rvList = it.findViewById<RecyclerView>(R.id.rvPointList)
+            savedScrollPosition = (rvList?.layoutManager as? LinearLayoutManager)?.findFirstVisibleItemPosition() ?: 0
             try {
                 windowManager.removeView(it)
             } catch (e: Exception) {
@@ -1579,8 +1675,11 @@ class FloatingWindowService : Service() {
                 val newX = params.x + 25f
                 val newY = params.y + 25f
                 if (adjustingPointPosition in 0 until recordedPoints.size) {
+                    val oldPoint = recordedPoints[adjustingPointPosition]
+                    actionHistory.add(PointAction.Modified(oldPoint, adjustingPointPosition))
                     recordedPoints[adjustingPointPosition] = recordedPoints[adjustingPointPosition].copy(x = newX, y = newY)
                     onPointsChanged?.invoke(recordedPoints.size)
+        syncOverlayPoints()
                     Toast.makeText(this@FloatingWindowService, "坐标已更新", Toast.LENGTH_SHORT).show()
                 }
             }
