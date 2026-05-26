@@ -143,18 +143,30 @@ class PointListAdapter(
             onDeleteClick(position)
         }
 
-        // 等待时长减少
+        // 等待时长减少（长按减1s，短按减0.5s）
         holder.btnDecreaseWait.setOnClickListener {
-            val newDuration = (point.duration - 500).coerceAtLeast(500)
+            val newDuration = (point.duration - 500).coerceAtLeast(100)
             if (newDuration != point.duration) {
                 onWaitDurationChange(position, point, newDuration)
             }
         }
+        holder.btnDecreaseWait.setOnLongClickListener {
+            val newDuration = (point.duration - 1000).coerceAtLeast(100)
+            if (newDuration != point.duration) {
+                onWaitDurationChange(position, point, newDuration)
+            }
+            true
+        }
 
-        // 等待时长增加
+        // 等待时长增加（长按加1s，短按加0.5s）
         holder.btnIncreaseWait.setOnClickListener {
             val newDuration = point.duration + 500
             onWaitDurationChange(position, point, newDuration)
+        }
+        holder.btnIncreaseWait.setOnLongClickListener {
+            val newDuration = point.duration + 1000
+            onWaitDurationChange(position, point, newDuration)
+            true
         }
     }
 

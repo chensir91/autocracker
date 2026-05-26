@@ -292,31 +292,7 @@ class RecordingOverlayView(context: Context) : View(context) {
             }
         }
         
-        // 【新增】绘制所有有坐标点位中心的小红点
-        for (point in recordedPoints) {
-            // 只绘制有坐标的点位（x>0, y>0）
-            if (point.x > 0 && point.y > 0) {
-                // SWIPE和LONG_PRESS_DRAG类型绘制起点和终点
-                when (point.type) {
-                    OperationType.SWIPE -> {
-                        canvas.drawCircle(drawX(point.x), drawY(point.y), 6f, redDotPaint)
-                        if (point.endX > 0 && point.endY > 0) {
-                            canvas.drawCircle(drawX(point.endX), drawY(point.endY), 6f, redDotPaint)
-                        }
-                    }
-                    OperationType.LONG_PRESS_DRAG -> {
-                        canvas.drawCircle(drawX(point.x), drawY(point.y), 6f, redDotPaint)
-                        if (point.endX > 0 && point.endY > 0) {
-                            canvas.drawCircle(drawX(point.endX), drawY(point.endY), 6f, redDotPaint)
-                        }
-                    }
-                    else -> {
-                        // CLICK、LONG_PRESS等类型绘制中心点
-                        canvas.drawCircle(drawX(point.x), drawY(point.y), 6f, redDotPaint)
-                    }
-                }
-            }
-        }
+        // 红点已移至独立的PointsDotOverlay，此处不再绘制
         
         // 绘制提示信息
         if (instructionShown) {

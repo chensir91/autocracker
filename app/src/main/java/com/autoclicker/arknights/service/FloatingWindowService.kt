@@ -83,7 +83,8 @@ class FloatingWindowService : Service() {
     private var adjustMarkerParams: WindowManager.LayoutParams? = null
     private var pointMarker: View? = null  // 显示点位标记（不可拖动）
     private var pointMarkerParams: WindowManager.LayoutParams? = null
-    
+    private var pointsDotOverlay: View? = null  // 所有点位红点覆盖层
+    private var pointsDotOverlayParams: WindowManager.LayoutParams? = null
     private val binder = LocalBinder()
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var settingsManager: SettingsManager
@@ -126,6 +127,7 @@ class FloatingWindowService : Service() {
      */
     private fun syncOverlayPoints() {
         recordingOverlay?.setPoints(recordedPoints)
+        updatePointsDotOverlay()
     }
     var onRecordingPoint: ((ClickPoint) -> Unit)? = null
     
@@ -184,6 +186,7 @@ class FloatingWindowService : Service() {
         hidePointListPanel()  // 清理点列表面板
         hideAdjustMarker()  // 清理调整标记
         hidePointMarker()   // 清理点位标记
+        hidePointsDotOverlay()  // 清理红点覆盖层
         try {
             windowManager.removeView(floatingView)
         } catch (e: Exception) {
@@ -551,18 +554,7 @@ class FloatingWindowService : Service() {
      */
     fun undoLastAction() {
         if (actionHistory.isEmpty()) {
-            // 没有操作历史时，回退到删除最后一个点位
-            if (recordedPoints.isNotEmpty()) {
-                recordedPoints.removeAt(recordedPoints.size - 1)
-                onPointsChanged?.invoke(recordedPoints.size)
-        syncOverlayPoints()
-                Toast.makeText(this, "已撤销最后一个点位", Toast.LENGTH_SHORT).show()
-                recordingOverlay?.setPoints(recordedPoints)
-                // 更新列表面板
-                pointListAdapter?.updatePoints(recordedPoints)
-            } else {
-                Toast.makeText(this, "没有可撤销的操作", Toast.LENGTH_SHORT).show()
-            }
+            Toast.makeText(this, "没有可撤销的操作", Toast.LENGTH_SHORT).show()
             return
         }
         
@@ -1468,6 +1460,7 @@ class FloatingWindowService : Service() {
             windowManager.addView(panelView, pointListParams)
             pointListPanel = panelView
             isPointListVisible = true
+            showPointsDotOverlay()  // 显示所有红点
         } catch (e: Exception) {
             Log.e(TAG, "Error showing point list panel", e)
         }
@@ -1490,8 +1483,9 @@ class FloatingWindowService : Service() {
         pointListPanel = null
         pointListParams = null
         isPointListVisible = false
-        // 关闭面板时也隐藏点位标记
+        // 关闭面板时也隐藏点位标记和红点覆盖层
         hidePointMarker()
+        hidePointsDotOverlay()
         // 重置选中状态
         pointListAdapter?.highlightedPosition = -1
     }
@@ -1722,6 +1716,107 @@ class FloatingWindowService : Service() {
         isAdjustingPoint = false
         adjustingPointPosition = -1
         hideAdjustConfirmButton()
+    }
+    
+    /**
+     * 所有点位红点覆盖层
+     * 全屏透明View，在所有有坐标的点位中心画小红点
+     */
+    class PointsDotOverlay(context: Context) : View(context) {
+        
+        private val redDotPaint = Paint().apply {
+            color = Color.argb(200, 244, 67, 54)  // 半透明红色
+            style = Paint.Style.FILL
+            isAntiAlias = true
+        }
+        
+        private var points: List<ClickPoint> = emptyList()
+        
+        fun setPoints(points: List<ClickPoint>) {
+            this.points = points
+            invalidate()
+        }
+        
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            for (point in points) {
+                if (point.x > 0 && point.y > 0) {
+                    when (point.type) {
+                        OperationType.SWIPE, OperationType.LONG_PRESS_DRAG -> {
+                            canvas.drawCircle(point.x, point.y, 6f, redDotPaint)
+                            if (point.endX > 0 && point.endY > 0) {
+                                canvas.drawCircle(point.endX, point.endY, 6f, redDotPaint)
+                            }
+                        }
+                        else -> {
+                            canvas.drawCircle(point.x, point.y, 6f, redDotPaint)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    /**
+     * 显示所有点位红点覆盖层
+     */
+    private fun showPointsDotOverlay() {
+        if (pointsDotOverlay != null) {
+            // 已存在则更新
+            (pointsDotOverlay as? PointsDotOverlay)?.setPoints(recordedPoints)
+            return
+        }
+        
+        val windowType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
+        
+        val overlay = PointsDotOverlay(this)
+        overlay.setPoints(recordedPoints)
+        
+        pointsDotOverlayParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            windowType,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+        }
+        
+        try {
+            windowManager.addView(overlay, pointsDotOverlayParams)
+            pointsDotOverlay = overlay
+        } catch (e: Exception) {
+            Log.e(TAG, "Error showing points dot overlay", e)
+        }
+    }
+    
+    /**
+     * 更新红点覆盖层数据
+     */
+    private fun updatePointsDotOverlay() {
+        if (pointsDotOverlay != null) {
+            (pointsDotOverlay as? PointsDotOverlay)?.setPoints(recordedPoints)
+        }
+    }
+    
+    /**
+     * 隐藏所有点位红点覆盖层
+     */
+    private fun hidePointsDotOverlay() {
+        pointsDotOverlay?.let {
+            try {
+                windowManager.removeView(it)
+            } catch (e: Exception) {}
+        }
+        pointsDotOverlay = null
+        pointsDotOverlayParams = null
     }
     
     /**
