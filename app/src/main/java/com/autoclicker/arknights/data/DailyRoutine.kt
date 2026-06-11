@@ -42,6 +42,30 @@ class DailyRoutine(
         DONE              // 完成
     }
     
+    // ============ 测试模块定义 ============
+    
+    enum class TestModule {
+        ENTER_GAME,       // 进游戏
+        CLEAR_POPUPS,     // 关弹窗
+        BASE_COLLECT,     // 清基建
+        FRIEND_VISIT,     // 好友线索交流
+        RECRUIT,          // 公招
+        CREDIT_SHOP,      // 信用商店
+        BATTLE_1_7,       // 刷1-7
+        MISSION           // 清任务
+    }
+    
+    // ============ 测试动作回调 ============
+    
+    sealed class TestAction {
+        data class Click(val x: Int, val y: Int) : TestAction()
+        data class Wait(val seconds: Float) : TestAction()
+        data class Recognize(val stateName: String) : TestAction()
+        data class StateChanged(val state: DailyState) : TestAction()
+        data class ModuleDone(val module: TestModule) : TestAction()
+        data class Error(val msg: String) : TestAction()
+    }
+    
     // ============ 运行状态 ============
     
     @Volatile var isRunning = false
@@ -58,6 +82,9 @@ class DailyRoutine(
     var onLog: ((String) -> Unit)? = null
     var onDone: (() -> Unit)? = null
     var onError: ((String) -> Unit)? = null
+    
+    // 测试模式回调
+    var onAction: ((TestAction) -> Unit)? = null
     
     // ============ 工具方法 ============
     
@@ -80,16 +107,22 @@ class DailyRoutine(
     private fun click(coord: DeviceConfig.PctCoord) {
         val (x, y) = Pct2Abs(coord)
         log("点击 (${coord.xPct}%, ${coord.yPct}%) → ($x, $y)")
+        onAction?.invoke(TestAction.Click(x, y))
         ClickUtils.click(service, x.toFloat(), y.toFloat())
     }
     
     /** 点击（绝对坐标） */
     private fun clickAbs(x: Int, y: Int) {
+        log("点击 ($x, $y)")
+        onAction?.invoke(TestAction.Click(x, y))
         ClickUtils.click(service, x.toFloat(), y.toFloat())
     }
     
-    /** 等待毫秒 */
+    /** 等待毫秒（带UI回调） */
     private fun delay(ms: Long) {
+        if (ms >= 1000) {
+            onAction?.invoke(TestAction.Wait(String.format("%.1f", ms / 1000f)))
+        }
         try { Thread.sleep(ms) } catch (_: InterruptedException) {}
     }
     
@@ -130,6 +163,7 @@ class DailyRoutine(
             bmp.recycle()
             if (matched) {
                 log("✅ ${rule.name} 识别成功 (${coord.xPct}%, ${coord.yPct}%)")
+                onAction?.invoke(TestAction.Recognize(rule.name))
                 return true
             }
             delay(intervalMs)
@@ -154,8 +188,10 @@ class DailyRoutine(
      */
     private fun handleWaitStart(): DailyState {
         log("=== 等待START界面 ===")
+        onAction?.invoke(TestAction.StateChanged(DailyState.WAIT_START))
         if (!waitForColor(DeviceConfig.START_CHECK, DeviceConfig.COLOR_START_YELLOW, timeoutMs = 60000)) {
             onError?.invoke("等待START超时，请确认游戏已启动")
+            onAction?.invoke(TestAction.Error("等待START超时，请确认游戏已启动"))
             return DailyState.DONE
         }
         delay(300)
@@ -172,6 +208,7 @@ class DailyRoutine(
      */
     private fun handleWaitWake(): DailyState {
         log("=== 等待开始唤醒 ===")
+        onAction?.invoke(TestAction.StateChanged(DailyState.WAIT_WAKE))
         
         val startTime = System.currentTimeMillis()
         val timeoutMs = 15000L
@@ -210,6 +247,7 @@ class DailyRoutine(
      */
     private fun handleClearPopups(): DailyState {
         log("=== 清理活动弹窗 ===")
+        onAction?.invoke(TestAction.StateChanged(DailyState.CLEAR_POPUPS))
         
         // 等一下让弹窗加载
         delay(3000)
@@ -242,6 +280,7 @@ class DailyRoutine(
      */
     private fun handleMainMenu(): DailyState {
         log("=== 主界面确认 ===")
+        onAction?.invoke(TestAction.StateChanged(DailyState.MAIN_MENU))
         
         // TODO: OCR识别"基建"文字
         // 当前临时方案: 截图后简单检查是否有底部导航栏特征
@@ -257,7 +296,7 @@ class DailyRoutine(
     // ============ 公开接口 ============
     
     /**
-     * 启动一键肝舟
+     * 启动一键肝舟（完整流程）
      */
     fun start() {
         if (isRunning) return
@@ -329,6 +368,7 @@ class DailyRoutine(
             } catch (e: Exception) {
                 Log.e(TAG, "DailyRoutine error", e)
                 onError?.invoke("运行出错: ${e.message}")
+                onAction?.invoke(TestAction.Error("运行出错: ${e.message}"))
             } finally {
                 isRunning = false
             }
@@ -338,10 +378,182 @@ class DailyRoutine(
     }
     
     /**
+     * 启动单个测试模块
+     * @param module 要运行的测试模块
+     */
+    fun startModule(module: TestModule) {
+        if (isRunning) return
+        
+        if (!ScreenshotHelper.isSupported) {
+            onError?.invoke("当前系统版本不支持截图（需Android 11+）")
+            onAction?.invoke(TestAction.Error("当前系统版本不支持截图（需Android 11+）"))
+            return
+        }
+        
+        isRunning = true
+        isPaused = false
+        
+        runnerThread = Thread({
+            log("🚀 测试模块启动: $module")
+            
+            try {
+                when (module) {
+                    TestModule.ENTER_GAME -> runEnterGameModule()
+                    TestModule.CLEAR_POPUPS -> runClearPopupsModule()
+                    TestModule.BASE_COLLECT -> {
+                        log("⚠️ 模块尚未实现: 清基建")
+                        onAction?.invoke(TestAction.Error("模块尚未实现: 清基建"))
+                        onAction?.invoke(TestAction.ModuleDone(module))
+                    }
+                    TestModule.FRIEND_VISIT -> {
+                        log("⚠️ 模块尚未实现: 好友线索交流")
+                        onAction?.invoke(TestAction.Error("模块尚未实现: 好友线索交流"))
+                        onAction?.invoke(TestAction.ModuleDone(module))
+                    }
+                    TestModule.RECRUIT -> {
+                        log("⚠️ 模块尚未实现: 公招")
+                        onAction?.invoke(TestAction.Error("模块尚未实现: 公招"))
+                        onAction?.invoke(TestAction.ModuleDone(module))
+                    }
+                    TestModule.CREDIT_SHOP -> {
+                        log("⚠️ 模块尚未实现: 信用商店")
+                        onAction?.invoke(TestAction.Error("模块尚未实现: 信用商店"))
+                        onAction?.invoke(TestAction.ModuleDone(module))
+                    }
+                    TestModule.BATTLE_1_7 -> {
+                        log("⚠️ 模块尚未实现: 刷1-7")
+                        onAction?.invoke(TestAction.Error("模块尚未实现: 刷1-7"))
+                        onAction?.invoke(TestAction.ModuleDone(module))
+                    }
+                    TestModule.MISSION -> {
+                        log("⚠️ 模块尚未实现: 清任务")
+                        onAction?.invoke(TestAction.Error("模块尚未实现: 清任务"))
+                        onAction?.invoke(TestAction.ModuleDone(module))
+                    }
+                }
+            } catch (e: InterruptedException) {
+                log("⛔ 测试模块被中断: $module")
+            } catch (e: Exception) {
+                Log.e(TAG, "TestModule error: $module", e)
+                onError?.invoke("运行出错: ${e.message}")
+                onAction?.invoke(TestAction.Error("运行出错: ${e.message}"))
+            } finally {
+                isRunning = false
+                log("🏁 测试模块完成: $module")
+            }
+        }, "TestModule-$module")
+        
+        runnerThread?.start()
+    }
+    
+    /**
+     * 运行进游戏模块（4个状态的完整流程）
+     */
+    private fun runEnterGameModule() {
+        currentState = DailyState.WAIT_START
+        onAction?.invoke(TestAction.StateChanged(currentState))
+        
+        // ① 等待START黄字
+        log("=== [测试] 等待START界面 ===")
+        if (!waitForColor(DeviceConfig.START_CHECK, DeviceConfig.COLOR_START_YELLOW, timeoutMs = 60000)) {
+            onError?.invoke("等待START超时，请确认游戏已启动")
+            onAction?.invoke(TestAction.Error("等待START超时，请确认游戏已启动"))
+            onAction?.invoke(TestAction.ModuleDone(TestModule.ENTER_GAME))
+            return
+        }
+        delay(300)
+        click(DeviceConfig.START_CLICK)
+        delay(1000)
+        
+        // ② 等待开始唤醒灰按钮
+        currentState = DailyState.WAIT_WAKE
+        onAction?.invoke(TestAction.StateChanged(currentState))
+        log("=== [测试] 等待开始唤醒 ===")
+        
+        val startTime = System.currentTimeMillis()
+        val timeoutMs = 15000L
+        
+        while (System.currentTimeMillis() - startTime < timeoutMs && isRunning) {
+            checkPaused()
+            val bmp = screenshot() ?: continue
+            
+            val isGray = checkColor(bmp, DeviceConfig.WAKE_CHECK, DeviceConfig.COLOR_WAKE_GRAY)
+            val isLightBg = checkColor(bmp, DeviceConfig.WAKE_ASSIST, DeviceConfig.COLOR_WAKE_BG_LIGHT)
+            
+            bmp.recycle()
+            
+            if (isGray && isLightBg) {
+                log("✅ 开始唤醒灰按钮识别成功")
+                delay(300)
+                click(DeviceConfig.WAKE_CLICK)
+                delay(2000)
+                break
+            }
+            delay(500)
+        }
+        
+        // ③ 清活动弹窗
+        currentState = DailyState.CLEAR_POPUPS
+        onAction?.invoke(TestAction.StateChanged(currentState))
+        log("=== [测试] 清理活动弹窗 ===")
+        
+        delay(3000)
+        for (i in 1..8) {
+            if (!isRunning) {
+                onAction?.invoke(TestAction.ModuleDone(TestModule.ENTER_GAME))
+                return
+            }
+            checkPaused()
+            val bmp = screenshot() ?: continue
+            bmp.recycle()
+            click(DeviceConfig.POPUP_CLOSE)
+            delay(800)
+        }
+        
+        // ④ 主界面
+        currentState = DailyState.MAIN_MENU
+        onAction?.invoke(TestAction.StateChanged(currentState))
+        log("=== [测试] 主界面确认 ===")
+        delay(2000)
+        
+        log("✅ 进游戏模块完成")
+        onAction?.invoke(TestAction.ModuleDone(TestModule.ENTER_GAME))
+    }
+    
+    /**
+     * 运行关弹窗模块
+     */
+    private fun runClearPopupsModule() {
+        currentState = DailyState.CLEAR_POPUPS
+        onAction?.invoke(TestAction.StateChanged(currentState))
+        log("=== [测试] 清理活动弹窗 ===")
+        
+        delay(1000)
+        
+        var closedCount = 0
+        for (i in 1..10) {
+            if (!isRunning) break
+            checkPaused()
+            
+            val bmp = screenshot() ?: continue
+            bmp.recycle()
+            
+            click(DeviceConfig.POPUP_CLOSE)
+            closedCount++
+            log("关闭弹窗 #$closedCount")
+            delay(800)
+        }
+        
+        log("✅ 关弹窗模块完成，共关闭 $closedCount 个弹窗")
+        onAction?.invoke(TestAction.ModuleDone(TestModule.CLEAR_POPUPS))
+    }
+    
+    /**
      * 停止
      */
     fun stop() {
         isRunning = false
+        isPaused = false
         runnerThread?.interrupt()
         runnerThread = null
         log("⛔ 已停止")

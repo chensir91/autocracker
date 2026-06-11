@@ -43,6 +43,8 @@ import com.autoclicker.arknights.ui.MainActivity
 import com.autoclicker.arknights.ui.PointListAdapter
 import com.autoclicker.arknights.ui.RecordingOverlayView
 import com.autoclicker.arknights.util.ClickUtils
+import com.autoclicker.arknights.data.DailyRoutine
+import com.autoclicker.arknights.data.DeviceConfig
 import kotlin.random.Random
 
 /**
@@ -85,6 +87,17 @@ class FloatingWindowService : Service() {
     private var pointMarkerParams: WindowManager.LayoutParams? = null
     private var pointsDotOverlay: View? = null  // 所有点位红点覆盖层
     private var pointsDotOverlayParams: WindowManager.LayoutParams? = null
+    
+    // ============ 测试模块相关 ============
+    private var testModulePanel: View? = null  // 模块选择面板
+    private var testModulePanelParams: WindowManager.LayoutParams? = null
+    private var testStatusBar: View? = null  // 测试状态栏
+    private var testStatusBarParams: WindowManager.LayoutParams? = null
+    private var testClickMarker: View? = null  // 红色点击标记
+    private var testClickMarkerParams: WindowManager.LayoutParams? = null
+    private var dailyRoutine: DailyRoutine? = null  // 当前的测试运行实例
+    private var isTestRunning = false  // 是否正在测试
+    
     private val binder = LocalBinder()
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var settingsManager: SettingsManager
@@ -187,6 +200,10 @@ class FloatingWindowService : Service() {
         hideAdjustMarker()  // 清理调整标记
         hidePointMarker()   // 清理点位标记
         hidePointsDotOverlay()  // 清理红点覆盖层
+        // 清理测试相关视图
+        hideTestModulePanel()
+        hideTestStatusBar()
+        hideTestClickMarker()
         try {
             windowManager.removeView(floatingView)
         } catch (e: Exception) {
@@ -350,6 +367,15 @@ class FloatingWindowService : Service() {
         
         floatingView.findViewById<ImageButton>(R.id.btnSettings).setOnClickListener {
             openSettings()
+        }
+        
+        // 测试按钮
+        floatingView.findViewById<ImageButton>(R.id.btnTest)?.setOnClickListener {
+            if (isTestRunning) {
+                Toast.makeText(this, "测试运行中，请先停止", Toast.LENGTH_SHORT).show()
+            } else {
+                showTestModulePanel()
+            }
         }
         
         // 最小化按钮
@@ -1943,4 +1969,485 @@ class ClickFeedbackView(context: Context) : View(context) {
             }
         } catch (e: Exception) {}
     }
+}
+
+// ============================================================================
+// 测试模块功能
+// ============================================================================
+
+/**
+ * 显示测试模块选择面板
+ * 居中显示，宽度约300dp，可拖动
+ */
+@SuppressLint("InflateParams")
+fun FloatingWindowService.showTestModulePanel() {
+    if (testModulePanel != null) return
+    
+    val windowType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+    } else {
+        @Suppress("DEPRECATION")
+        WindowManager.LayoutParams.TYPE_PHONE
+    }
+    
+    // 创建面板容器
+    val panelContainer = DraggableFrameLayout(this).apply {
+        setBackgroundColor(android.graphics.Color.argb(240, 50, 50, 50))
+        setPadding(16, 16, 16, 16)
+    }
+    
+    // 创建内容布局
+    val contentLayout = android.widget.LinearLayout(this).apply {
+        orientation = android.widget.LinearLayout.VERTICAL
+    }
+    
+    // 标题栏
+    val titleBar = android.widget.LinearLayout(this).apply {
+        orientation = android.widget.LinearLayout.HORIZONTAL
+        gravity = android.view.Gravity.CENTER_VERTICAL
+        setPadding(0, 0, 0, 12)
+    }
+    
+    val titleText = android.widget.TextView(this).apply {
+        text = "选择测试模块"
+        setTextColor(android.graphics.Color.WHITE)
+        textSize = 18f
+        layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+    }
+    
+    val closeBtn = android.widget.TextView(this).apply {
+        text = "✕"
+        setTextColor(android.graphics.Color.WHITE)
+        textSize = 20f
+        setPadding(16, 8, 8, 8)
+    }
+    closeBtn.setOnClickListener { hideTestModulePanel() }
+    
+    titleBar.addView(titleText)
+    titleBar.addView(closeBtn)
+    contentLayout.addView(titleBar)
+    
+    // 模块按钮列表
+    val modules = listOf(
+        "进游戏" to DailyRoutine.TestModule.ENTER_GAME,
+        "关弹窗" to DailyRoutine.TestModule.CLEAR_POPUPS,
+        "清基建" to DailyRoutine.TestModule.BASE_COLLECT,
+        "好友线索交流" to DailyRoutine.TestModule.FRIEND_VISIT,
+        "公招" to DailyRoutine.TestModule.RECRUIT,
+        "信用商店" to DailyRoutine.TestModule.CREDIT_SHOP,
+        "刷1-7" to DailyRoutine.TestModule.BATTLE_1_7,
+        "清任务" to DailyRoutine.TestModule.MISSION
+    )
+    
+    for ((name, module) in modules) {
+        val btn = android.widget.TextView(this).apply {
+            text = name
+            setTextColor(android.graphics.Color.WHITE)
+            textSize = 16f
+            setPadding(16, 14, 16, 14)
+            setBackgroundColor(android.graphics.Color.argb(180, 76, 175, 80))
+            gravity = android.view.Gravity.CENTER
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = 8
+            }
+        }
+        btn.setOnClickListener {
+            hideTestModulePanel()
+            startTestModule(module)
+        }
+        contentLayout.addView(btn)
+    }
+    
+    panelContainer.addView(contentLayout)
+    
+    // 设置拖动支持
+    panelContainer.onDrag = { dx, dy ->
+        testModulePanelParams?.let { params ->
+            params.x += dx.toInt()
+            params.y += dy.toInt()
+            windowManager.updateViewLayout(panelContainer, params)
+        }
+    }
+    
+    // 计算位置（居中）
+    val displayMetrics = resources.displayMetrics
+    val panelWidth = (300 * displayMetrics.density).toInt()
+    val panelHeight = android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+    val screenWidth = displayMetrics.widthPixels
+    val screenHeight = displayMetrics.heightPixels
+    
+    testModulePanelParams = WindowManager.LayoutParams(
+        panelWidth,
+        panelHeight,
+        windowType,
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+        PixelFormat.TRANSLUCENT
+    ).apply {
+        gravity = Gravity.CENTER
+        x = 0
+        y = -screenHeight / 4  // 稍微偏上
+    }
+    
+    try {
+        windowManager.addView(panelContainer, testModulePanelParams)
+        testModulePanel = panelContainer
+    } catch (e: Exception) {
+        Log.e(TAG, "Error showing test module panel", e)
+    }
+}
+
+/**
+ * 隐藏测试模块选择面板
+ */
+fun FloatingWindowService.hideTestModulePanel() {
+    testModulePanel?.let {
+        try {
+            windowManager.removeView(it)
+        } catch (e: Exception) {
+            Log.w(TAG, "Error removing test module panel", e)
+        }
+    }
+    testModulePanel = null
+    testModulePanelParams = null
+}
+
+/**
+ * 启动测试模块
+ */
+private fun FloatingWindowService.startTestModule(module: DailyRoutine.TestModule) {
+    val service = AutoClickAccessibilityService.instance
+    if (service == null) {
+        Toast.makeText(this, "无障碍服务未启动", Toast.LENGTH_SHORT).show()
+        return
+    }
+    
+    isTestRunning = true
+    
+    // 获取屏幕尺寸
+    val displayMetrics = resources.displayMetrics
+    val screenWidth = displayMetrics.widthPixels
+    val screenHeight = displayMetrics.heightPixels
+    
+    // 创建DailyRoutine实例
+    dailyRoutine = DailyRoutine(service, screenWidth, screenHeight)
+    
+    // 设置回调
+    dailyRoutine?.onAction = { action ->
+        handler.post {
+            when (action) {
+                is DailyRoutine.TestAction.Click -> {
+                    // 更新状态栏显示
+                    updateTestStatusBar(action.x, action.y, null)
+                    // 显示红色点击标记
+                    showTestClickMarker(action.x, action.y)
+                }
+                is DailyRoutine.TestAction.Wait -> {
+                    updateTestStatusBar(null, null, "等待 ${action.seconds}秒")
+                }
+                is DailyRoutine.TestAction.Recognize -> {
+                    updateTestStatusBar(null, null, "识别: ${action.stateName}")
+                }
+                is DailyRoutine.TestAction.StateChanged -> {
+                    updateTestStatusBar(null, null, null, action.state.name)
+                }
+                is DailyRoutine.TestAction.ModuleDone -> {
+                    Toast.makeText(this, "模块完成: ${action.module}", Toast.LENGTH_SHORT).show()
+                    hideTestStatusBar()
+                    hideTestClickMarker()
+                    isTestRunning = false
+                    dailyRoutine = null
+                }
+                is DailyRoutine.TestAction.Error -> {
+                    Toast.makeText(this, "错误: ${action.msg}", Toast.LENGTH_SHORT).show()
+                    hideTestStatusBar()
+                    hideTestClickMarker()
+                    isTestRunning = false
+                    dailyRoutine = null
+                }
+            }
+        }
+    }
+    
+    dailyRoutine?.onDone = {
+        handler.post {
+            hideTestStatusBar()
+            hideTestClickMarker()
+            isTestRunning = false
+            dailyRoutine = null
+        }
+    }
+    
+    // 显示测试状态栏
+    showTestStatusBar(module.name)
+    
+    // 启动模块
+    dailyRoutine?.startModule(module)
+}
+
+/**
+ * 显示测试状态栏
+ * 位置: 屏幕顶部
+ * 内容: 左侧行为、中间状态、右侧"正在测试"+停止按钮
+ */
+@SuppressLint("InflateParams")
+private fun FloatingWindowService.showTestStatusBar(moduleName: String) {
+    if (testStatusBar != null) return
+    
+    val windowType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+    } else {
+        @Suppress("DEPRECATION")
+        WindowManager.LayoutParams.TYPE_PHONE
+    }
+    
+    val displayMetrics = resources.displayMetrics
+    val screenWidth = displayMetrics.widthPixels
+    
+    // 创建状态栏布局
+    val statusBar = android.widget.LinearLayout(this).apply {
+        orientation = android.widget.LinearLayout.HORIZONTAL
+        gravity = android.view.Gravity.CENTER_VERTICAL
+        setBackgroundColor(android.graphics.Color.argb(200, 30, 30, 30))
+        setPadding(16, 12, 16, 12)
+    }
+    
+    // 左侧行为文字
+    val actionText = android.widget.TextView(this).apply {
+        id = android.R.id.text1
+        text = "准备中..."
+        setTextColor(android.graphics.Color.WHITE)
+        textSize = 14f
+        layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+    }
+    
+    // 中间状态文字
+    val stateText = android.widget.TextView(this).apply {
+        id = android.R.id.text2
+        text = moduleName
+        setTextColor(android.graphics.Color.argb(200, 200, 200, 200))
+        textSize = 12f
+        gravity = android.view.Gravity.CENTER
+        layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+    }
+    
+    // 右侧"正在测试"+停止按钮
+    val rightContainer = android.widget.LinearLayout(this).apply {
+        orientation = android.widget.LinearLayout.HORIZONTAL
+        gravity = android.view.Gravity.CENTER_VERTICAL
+        layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+    }
+    
+    val testingText = android.widget.TextView(this).apply {
+        text = "正在测试"
+        setTextColor(android.graphics.Color.argb(200, 200, 200, 200))
+        textSize = 12f
+    }
+    
+    val stopBtn = android.widget.TextView(this).apply {
+        text = "■ 停止"
+        setTextColor(android.graphics.Color.RED)
+        textSize = 14f
+        setPadding(16, 4, 8, 4)
+        setBackgroundColor(android.graphics.Color.argb(100, 255, 100, 100))
+    }
+    stopBtn.setOnClickListener {
+        dailyRoutine?.stop()
+        hideTestStatusBar()
+        hideTestClickMarker()
+        isTestRunning = false
+        dailyRoutine = null
+    }
+    
+    rightContainer.addView(testingText)
+    rightContainer.addView(stopBtn)
+    
+    statusBar.addView(actionText)
+    statusBar.addView(stateText)
+    statusBar.addView(rightContainer)
+    
+    testStatusBarParams = WindowManager.LayoutParams(
+        screenWidth,
+        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+        windowType,
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+        PixelFormat.TRANSLUCENT
+    ).apply {
+        gravity = Gravity.TOP or Gravity.START
+        x = 0
+        y = 0
+    }
+    
+    try {
+        windowManager.addView(statusBar, testStatusBarParams)
+        testStatusBar = statusBar
+    } catch (e: Exception) {
+        Log.e(TAG, "Error showing test status bar", e)
+    }
+}
+
+/**
+ * 更新测试状态栏
+ */
+private fun FloatingWindowService.updateTestStatusBar(
+    clickX: Int?,
+    clickY: Int?,
+    actionText: String?,
+    stateName: String? = null
+) {
+    testStatusBar?.let { bar ->
+        val actionTv = bar.findViewById<TextView>(android.R.id.text1)
+        val stateTv = bar.findViewById<TextView>(android.R.id.text2)
+        
+        when {
+            clickX != null && clickY != null -> {
+                actionTv?.text = "点击($clickX, $clickY)"
+            }
+            actionText != null -> {
+                actionTv?.text = actionText
+            }
+        }
+        
+        if (stateName != null) {
+            stateTv?.text = stateName
+        }
+    }
+}
+
+/**
+ * 隐藏测试状态栏
+ */
+private fun FloatingWindowService.hideTestStatusBar() {
+    testStatusBar?.let {
+        try {
+            windowManager.removeView(it)
+        } catch (e: Exception) {
+            Log.w(TAG, "Error removing test status bar", e)
+        }
+    }
+    testStatusBar = null
+    testStatusBarParams = null
+}
+
+/**
+ * 红色点击标记视图
+ * 在点击位置显示红色圆圈
+ */
+class TestClickMarkerView(context: Context) : View(context) {
+    
+    private val circlePaint = Paint().apply {
+        color = Color.parseColor("#F44336")  // 红色
+        style = Paint.Style.FILL
+        isAntiAlias = true
+        alpha = 200
+    }
+    
+    private val strokePaint = Paint().apply {
+        color = Color.parseColor("#B71C1C")  // 深红色边框
+        style = Paint.Style.STROKE
+        strokeWidth = 4f
+        isAntiAlias = true
+    }
+    
+    private val handler = Handler(Looper.getMainLooper())
+    private var hideRunnable: Runnable? = null
+    
+    private val circleRadius = 20f  // 40px直径
+    private val markerSize = (circleRadius * 2 + 8).toInt()  // 固定尺寸，48px
+    
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        // 绘制圆圈
+        canvas.drawCircle(width / 2f, height / 2f, circleRadius, circlePaint)
+        canvas.drawCircle(width / 2f, height / 2f, circleRadius, strokePaint)
+    }
+    
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        setMeasuredDimension(markerSize, markerSize)
+    }
+    
+    fun showAt(x: Int, y: Int, wm: WindowManager, params: WindowManager.LayoutParams) {
+        // 取消之前的隐藏任务
+        hideRunnable?.let { handler.removeCallbacks(it) }
+        
+        // 设置位置（用固定尺寸居中偏移）
+        params.x = x - markerSize / 2
+        params.y = y - markerSize / 2
+        
+        try {
+            wm.updateViewLayout(this, params)
+        } catch (e: Exception) {
+            Log.e("TestClickMarker", "Error updating layout", e)
+        }
+        
+        // 500ms后自动隐藏
+        val runnable = Runnable { hide(wm) }
+        hideRunnable = runnable
+        handler.postDelayed(runnable, 500)
+        
+        invalidate()
+    }
+    
+    private fun hide(wm: WindowManager) {
+        try {
+            wm.removeView(this)
+        } catch (e: Exception) {
+            Log.w("TestClickMarker", "Error removing view", e)
+        }
+    }
+}
+
+/**
+ * 显示红色点击标记
+ */
+@SuppressLint("InflateParams")
+private fun FloatingWindowService.showTestClickMarker(x: Int, y: Int) {
+    // 每次点击都创建新的标记视图
+    hideTestClickMarker()
+    
+    val windowType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+    } else {
+        @Suppress("DEPRECATION")
+        WindowManager.LayoutParams.TYPE_PHONE
+    }
+    
+    val marker = TestClickMarkerView(this)
+    
+    testClickMarkerParams = WindowManager.LayoutParams(
+        WindowManager.LayoutParams.WRAP_CONTENT,
+        WindowManager.LayoutParams.WRAP_CONTENT,
+        windowType,
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+        PixelFormat.TRANSLUCENT
+    ).apply {
+        gravity = Gravity.TOP or Gravity.START
+    }
+    
+    try {
+        windowManager.addView(marker, testClickMarkerParams)
+        testClickMarker = marker
+        marker.showAt(x, y, windowManager, testClickMarkerParams!!)
+    } catch (e: Exception) {
+        Log.e(TAG, "Error showing test click marker", e)
+    }
+}
+
+/**
+ * 隐藏红色点击标记
+ */
+private fun FloatingWindowService.hideTestClickMarker() {
+    testClickMarker?.let {
+        try {
+            windowManager.removeView(it)
+        } catch (e: Exception) {
+            Log.w(TAG, "Error removing test click marker", e)
+        }
+    }
+    testClickMarker = null
+    testClickMarkerParams = null
 }
