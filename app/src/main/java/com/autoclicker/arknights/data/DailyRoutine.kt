@@ -121,7 +121,7 @@ class DailyRoutine(
     /** 等待毫秒（带UI回调） */
     private fun delay(ms: Long) {
         if (ms >= 1000) {
-            onAction?.invoke(TestAction.Wait(String.format("%.1f", ms / 1000f)))
+            onAction?.invoke(TestAction.Wait(ms / 1000f))
         }
         try { Thread.sleep(ms) } catch (_: InterruptedException) {}
     }
