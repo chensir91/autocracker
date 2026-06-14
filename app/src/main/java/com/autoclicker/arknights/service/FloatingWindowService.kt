@@ -2086,7 +2086,7 @@ class FloatingWindowService : Service() {
                         dailyRoutine = null
                     }
                     is DailyRoutine.TestAction.Error -> {
-                        Toast.makeText(this, "错误: ${action.msg}", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, "错误: ${action.msg}", Toast.LENGTH_LONG).show()
                         hideTestStatusBar()
                         hideTestClickMarker()
                         isTestRunning = false

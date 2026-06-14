@@ -364,8 +364,8 @@ class DailyRoutine(
                 val diag = ScreenshotHelper.lastDiagnostic ?: ""
                 log("❌ 截图失败: $detail | $diag")
                 val userMsg = when {
-                    detail.contains("err=4") || detail.contains("请重开无障碍") -> "截图权限未生效，请关闭再重新开启无障碍服务"
-                    else -> "截图失败: $detail\n日志:${ScreenshotHelper.diagFilePath ?: "无"}"
+                    detail.contains("err=4") || detail.contains("请重开无障碍") -> "[v${ScreenshotHelper.VERSION}] 截图权限未生效，请关闭再重新开启无障碍服务"
+                    else -> "[v${ScreenshotHelper.VERSION}] $detail"
                 }
                 onError?.invoke(userMsg)
                 isRunning = false
@@ -467,8 +467,8 @@ class DailyRoutine(
                 val diag = ScreenshotHelper.lastDiagnostic ?: ""
                 log("❌ 截图失败: $detail | $diag")
                 val userMsg = when {
-                    detail.contains("err=4") || detail.contains("请重开无障碍") -> "截图权限未生效，请关闭再重新开启无障碍服务"
-                    else -> "截图失败: $detail\n日志:${ScreenshotHelper.diagFilePath ?: "无"}"
+                    detail.contains("err=4") || detail.contains("请重开无障碍") -> "[v${ScreenshotHelper.VERSION}] 截图权限未生效，请关闭再重新开启无障碍服务"
+                    else -> "[v${ScreenshotHelper.VERSION}] $detail"
                 }
                 onError?.invoke(userMsg)
                 onAction?.invoke(TestAction.Error(userMsg))
