@@ -3,7 +3,7 @@ package com.autoclicker.arknights.util
 import android.accessibilityservice.AccessibilityService
 import android.graphics.Bitmap
 import android.graphics.ColorSpace
-import android.graphics.HardwareBuffer
+import android.hardware.HardwareBuffer
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
