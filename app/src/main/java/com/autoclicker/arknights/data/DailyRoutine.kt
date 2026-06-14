@@ -239,36 +239,56 @@ class DailyRoutine(
         }
         delay(300)
         click(DeviceConfig.START_CLICK)
-        delay(1000)
+        delay(2000)
         return DailyState.WAIT_WAKE
     }
     
     /**
      * ② 等待开始唤醒灰按钮
-     * - 条件: (51%, 70%) R/G/B ≈ 85±30，辅助验证 (51%, 66%) R>200（浅灰背景）
-     * - 操作: 点击开始唤醒
+     * - 主方案: 区域搜索灰按钮 (类似START搜索)
+     * - 备用: 固定点识色 (宽松条件: gray OR lightBg)
+     * - 兜底: 超时后直接点击
      * - 下一状态: CLEAR_POPUPS
      */
     private fun handleWaitWake(): DailyState {
         log("=== 等待开始唤醒 ===")
         onAction?.invoke(TestAction.StateChanged(DailyState.WAIT_WAKE))
         
-        val startTime = System.currentTimeMillis()
-        val timeoutMs = 15000L
+        // 主方案: 区域搜索灰按钮
+        if (waitForColorInArea(DeviceConfig.WAKE_SEARCH_AREA, DeviceConfig.COLOR_WAKE_GRAY, timeoutMs = 20000)) {
+            log("✅ 开始唤醒灰按钮区域搜索成功")
+            delay(300)
+            click(DeviceConfig.WAKE_CLICK)
+            delay(2000)
+            return DailyState.CLEAR_POPUPS
+        }
         
-        while (System.currentTimeMillis() - startTime < timeoutMs && isRunning) {
+        // 备用: 固定点识色 + 诊断日志
+        log("⚠️ 区域搜索超时，尝试固定点识色...")
+        val startTime = System.currentTimeMillis()
+        while (System.currentTimeMillis() - startTime < 8000L && isRunning) {
             checkPaused()
             val bmp = screenshot() ?: continue
             
-            // 主判断: 灰按钮
             val isGray = checkColor(bmp, DeviceConfig.WAKE_CHECK, DeviceConfig.COLOR_WAKE_GRAY)
-            // 辅助判断: 浅灰背景（与按钮形成跳变）
             val isLightBg = checkColor(bmp, DeviceConfig.WAKE_ASSIST, DeviceConfig.COLOR_WAKE_BG_LIGHT)
+            
+            // 诊断: 记录实际颜色值
+            val (cx, cy) = Pct2Abs(DeviceConfig.WAKE_CHECK)
+            val (ax, ay) = Pct2Abs(DeviceConfig.WAKE_ASSIST)
+            if (cx in 0 until bmp.width && cy in 0 until bmp.height) {
+                val cp = bmp.getPixel(cx, cy)
+                log("🔍 WAKE_CHECK(${cx},${cy}): R=${android.graphics.Color.red(cp)} G=${android.graphics.Color.green(cp)} B=${android.graphics.Color.blue(cp)} gray=$isGray")
+            }
+            if (ax in 0 until bmp.width && ay in 0 until bmp.height) {
+                val ap = bmp.getPixel(ax, ay)
+                log("🔍 WAKE_ASSIST(${ax},${ay}): R=${android.graphics.Color.red(ap)} G=${android.graphics.Color.green(ap)} B=${android.graphics.Color.blue(ap)} light=$isLightBg")
+            }
             
             bmp.recycle()
             
-            if (isGray && isLightBg) {
-                log("✅ 开始唤醒灰按钮识别成功")
+            if (isGray || isLightBg) {
+                log("✅ 固定点识色命中 (gray=$isGray, lightBg=$isLightBg)")
                 delay(300)
                 click(DeviceConfig.WAKE_CLICK)
                 delay(2000)
@@ -277,8 +297,10 @@ class DailyRoutine(
             delay(500)
         }
         
-        // 灰按钮可能不存在（已自动进入），直接尝试下一状态
-        log("⚠️ 开始唤醒超时，可能已自动进入，继续清理弹窗")
+        // 兜底: 直接点击（按钮可能在那里但识色不准）
+        log("⚠️ 开始唤醒超时，兜底点击")
+        click(DeviceConfig.WAKE_CLICK)
+        delay(2000)
         return DailyState.CLEAR_POPUPS
     }
     
@@ -547,34 +569,53 @@ class DailyRoutine(
         }
         delay(300)
         click(DeviceConfig.START_CLICK)
-        delay(1000)
+        delay(2000)
         
-        // ② 等待开始唤醒灰按钮
+        // ② 等待开始唤醒灰按钮（主方案: 区域搜索，备用: 固定点，兜底: 直接点击）
         currentState = DailyState.WAIT_WAKE
         onAction?.invoke(TestAction.StateChanged(currentState))
         log("=== [测试] 等待开始唤醒 ===")
         
-        val startTime = System.currentTimeMillis()
-        val timeoutMs = 15000L
-        
-        while (System.currentTimeMillis() - startTime < timeoutMs && isRunning) {
-            checkPaused()
-            val bmp = screenshot() ?: continue
-            
-            val isGray = checkColor(bmp, DeviceConfig.WAKE_CHECK, DeviceConfig.COLOR_WAKE_GRAY)
-            val isLightBg = checkColor(bmp, DeviceConfig.WAKE_ASSIST, DeviceConfig.COLOR_WAKE_BG_LIGHT)
-            
-            bmp.recycle()
-            
-            if (isGray && isLightBg) {
-                log("✅ 开始唤醒灰按钮识别成功")
-                delay(300)
-                click(DeviceConfig.WAKE_CLICK)
-                delay(2000)
-                break
+        var wakeFound = false
+        // 主方案: 区域搜索
+        if (waitForColorInArea(DeviceConfig.WAKE_SEARCH_AREA, DeviceConfig.COLOR_WAKE_GRAY, timeoutMs = 20000)) {
+            log("✅ 开始唤醒区域搜索成功")
+            wakeFound = true
+        } else {
+            // 备用: 固定点识色 (宽松条件)
+            log("⚠️ 区域搜索超时，尝试固定点识色...")
+            val startTime = System.currentTimeMillis()
+            while (System.currentTimeMillis() - startTime < 8000L && isRunning) {
+                checkPaused()
+                val bmp = screenshot() ?: continue
+                
+                val isGray = checkColor(bmp, DeviceConfig.WAKE_CHECK, DeviceConfig.COLOR_WAKE_GRAY)
+                val isLightBg = checkColor(bmp, DeviceConfig.WAKE_ASSIST, DeviceConfig.COLOR_WAKE_BG_LIGHT)
+                
+                // 诊断日志
+                val (cx, cy) = Pct2Abs(DeviceConfig.WAKE_CHECK)
+                if (cx in 0 until bmp.width && cy in 0 until bmp.height) {
+                    val cp = bmp.getPixel(cx, cy)
+                    log("🔍 WAKE_CHECK(${cx},${cy}): R=${android.graphics.Color.red(cp)} G=${android.graphics.Color.green(cp)} B=${android.graphics.Color.blue(cp)} gray=$isGray")
+                }
+                
+                bmp.recycle()
+                
+                if (isGray || isLightBg) {
+                    log("✅ 固定点识色命中 (gray=$isGray, lightBg=$isLightBg)")
+                    wakeFound = true
+                    break
+                }
+                delay(500)
             }
-            delay(500)
         }
+        
+        if (!wakeFound) {
+            log("⚠️ 开始唤醒超时，兜底点击")
+        }
+        delay(300)
+        click(DeviceConfig.WAKE_CLICK)
+        delay(2000)
         
         // ③ 清活动弹窗
         currentState = DailyState.CLEAR_POPUPS
