@@ -37,6 +37,13 @@ object ScreenshotHelper {
         
         Log.d(TAG, "HardwareBuffer: w=$width h=$height format=$format")
         
+        // 先测试HardwareBuffer的基本属性是否可访问
+        try {
+            Log.d(TAG, "  format=$format width=$width height=$height usage=${hardwareBuffer.usage}")
+        } catch (e: Exception) {
+            Log.e(TAG, "HardwareBuffer属性访问失败: ${e.javaClass.simpleName}: ${e.message}")
+        }
+        
         // 方案1: wrapHardwareBuffer
         try {
             val colorSpace = try {
@@ -269,7 +276,7 @@ object ScreenshotHelper {
                             }
                             screenshotClass.getMethod("close").invoke(screenshot)
                         } catch (e: Exception) {
-                            captureError = "处理截图异常: ${e.javaClass.simpleName}: ${e.message}"
+                            captureError = "onSuccess异常: ${e.javaClass.simpleName}: ${e.message?.take(200)}"
                             Log.e(TAG, "Error processing screenshot", e)
                         }
                         latch.countDown()
