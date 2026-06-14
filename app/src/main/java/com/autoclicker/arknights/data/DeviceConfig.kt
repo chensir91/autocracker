@@ -35,11 +35,11 @@ object DeviceConfig {
     
     // ============ 进游戏 ============
     
-    /** START黄字识色点 (50%, 90%) — Y范围86-94%均可 */
-    val START_CHECK = PctCoord(50f, 90f)
+    /** START黄字搜索区域 (40-60%, 86-97%) — 菱形Y位置跨设备偏移大，须搜索 */
+    val START_SEARCH_AREA = PctRect(40f, 86f, 60f, 97f)
     
-    /** START点击位置 (50%, 90%) — 和识色点重合 */
-    val START_CLICK = PctCoord(50f, 90f)
+    /** START点击位置 (50%, 91%) — 菱形中心偏上 */
+    val START_CLICK = PctCoord(50f, 91f)
     
     /** 开始唤醒灰按钮识色点 (51%, 70%) — Y范围67-72%均可 */
     val WAKE_CHECK = PctCoord(51f, 70f)

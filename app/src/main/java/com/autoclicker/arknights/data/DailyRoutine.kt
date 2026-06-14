@@ -172,6 +172,30 @@ class DailyRoutine(
         return false
     }
     
+    /** 在区域内搜索颜色（轮询截图直到找到） */
+    private fun waitForColorInArea(
+        area: DeviceConfig.PctRect,
+        rule: DeviceConfig.ColorRule,
+        timeoutMs: Long = 30000,
+        intervalMs: Long = 500
+    ): Boolean {
+        val startTime = System.currentTimeMillis()
+        while (System.currentTimeMillis() - startTime < timeoutMs && isRunning) {
+            checkPaused()
+            val bmp = screenshot() ?: continue
+            val found = searchColor(bmp, area, rule)
+            bmp.recycle()
+            if (found != null) {
+                log("✅ ${rule.name} 区域搜索成功 (${area.leftPct}-${area.rightPct}%, ${area.topPct}-${area.bottomPct}%) → (${found.first}, ${found.second})")
+                onAction?.invoke(TestAction.Recognize(rule.name))
+                return true
+            }
+            delay(intervalMs)
+        }
+        log("❌ ${rule.name} 区域搜索超时 ${timeoutMs}ms")
+        return false
+    }
+    
     /** 日志 */
     private fun log(msg: String) {
         Log.d(TAG, msg)
@@ -189,7 +213,7 @@ class DailyRoutine(
     private fun handleWaitStart(): DailyState {
         log("=== 等待START界面 ===")
         onAction?.invoke(TestAction.StateChanged(DailyState.WAIT_START))
-        if (!waitForColor(DeviceConfig.START_CHECK, DeviceConfig.COLOR_START_YELLOW, timeoutMs = 60000)) {
+        if (!waitForColorInArea(DeviceConfig.START_SEARCH_AREA, DeviceConfig.COLOR_START_YELLOW, timeoutMs = 60000)) {
             onError?.invoke("等待START超时，请确认游戏已启动")
             onAction?.invoke(TestAction.Error("等待START超时，请确认游戏已启动"))
             return DailyState.DONE
@@ -453,9 +477,9 @@ class DailyRoutine(
         currentState = DailyState.WAIT_START
         onAction?.invoke(TestAction.StateChanged(currentState))
         
-        // ① 等待START黄字
+        // ① 等待START黄字（区域搜索，兼容不同设备Y偏移）
         log("=== [测试] 等待START界面 ===")
-        if (!waitForColor(DeviceConfig.START_CHECK, DeviceConfig.COLOR_START_YELLOW, timeoutMs = 60000)) {
+        if (!waitForColorInArea(DeviceConfig.START_SEARCH_AREA, DeviceConfig.COLOR_START_YELLOW, timeoutMs = 60000)) {
             onError?.invoke("等待START超时，请确认游戏已启动")
             onAction?.invoke(TestAction.Error("等待START超时，请确认游戏已启动"))
             onAction?.invoke(TestAction.ModuleDone(TestModule.ENTER_GAME))
