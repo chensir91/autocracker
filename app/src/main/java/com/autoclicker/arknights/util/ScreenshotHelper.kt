@@ -3,6 +3,7 @@ package com.autoclicker.arknights.util
 import android.accessibilityservice.AccessibilityService
 import android.graphics.Bitmap
 import android.graphics.ColorSpace
+import android.graphics.Rect
 import android.hardware.HardwareBuffer
 import android.os.Build
 import android.os.Handler
@@ -13,9 +14,11 @@ import java.util.concurrent.Executor
 import java.util.concurrent.TimeUnit
 
 /**
- * 截图辅助工具 v3.3
- * - 核心修复: iqoo/vivo设备HardwareBuffer格式非标准，wrapHardwareBuffer抛UnsupportedOperationException
- * - 方案: 用HardwareBuffer.lock()映射到CPU内存，手动拷贝像素创建Bitmap
+ * 截图辅助工具 v3.4
+ * - 修复: Toast信息截断 → 改用短消息+详细日志
+ * - 修复: Image.newInstance参数和pixelStride bug
+ * - 新增: SurfaceControl.screenshot() 作为终极备用
+ * - 诊断: 记录HardwareBuffer format数值
  */
 object ScreenshotHelper {
     private const val TAG = "ScreenshotHelper"
@@ -26,25 +29,20 @@ object ScreenshotHelper {
     var lastError: String? = null
         private set
     
-    /**
-     * 从 HardwareBuffer 创建 Bitmap
-     * 优先wrapHardwareBuffer，失败则用lock手动读像素
-     */
+    /** 诊断信息，用于状态栏显示 */
+    var lastDiagnostic: String? = null
+        private set
+    
     private fun hardwareBufferToBitmap(hardwareBuffer: HardwareBuffer): Bitmap? {
         val width = hardwareBuffer.width
         val height = hardwareBuffer.height
         val format = hardwareBuffer.format
+        val usage = hardwareBuffer.usage
         
-        Log.d(TAG, "HardwareBuffer: w=$width h=$height format=$format")
+        lastDiagnostic = "HwBuf: ${width}x${height} fmt=$format usage=$usage"
+        Log.d(TAG, lastDiagnostic!!)
         
-        // 先测试HardwareBuffer的基本属性是否可访问
-        try {
-            Log.d(TAG, "  format=$format width=$width height=$height usage=${hardwareBuffer.usage}")
-        } catch (e: Exception) {
-            Log.e(TAG, "HardwareBuffer属性访问失败: ${e.javaClass.simpleName}: ${e.message}")
-        }
-        
-        // 方案1: wrapHardwareBuffer
+        // 方案1: wrapHardwareBuffer（标准方式）
         try {
             val colorSpace = try {
                 @Suppress("DEPRECATION")
@@ -57,149 +55,132 @@ object ScreenshotHelper {
                 wrapped.recycle()
                 if (copy != null) {
                     Log.d(TAG, "✅ wrapHardwareBuffer成功")
+                    lastDiagnostic = "截图OK(wrap)"
                     return copy
                 }
             }
-            Log.w(TAG, "wrapHardwareBuffer返回null, format=$format")
+            Log.w(TAG, "wrapHardwareBuffer返回null, fmt=$format")
         } catch (e: UnsupportedOperationException) {
-            Log.w(TAG, "wrapHardwareBuffer不支持(format=$format): ${e.message}")
+            Log.w(TAG, "wrapHardwareBuffer不支持: fmt=$format msg=${e.message}")
         } catch (e: Exception) {
-            Log.w(TAG, "wrapHardwareBuffer异常: ${e.javaClass.simpleName}: ${e.message}")
+            Log.w(TAG, "wrapHardwareBuffer异常: ${e.javaClass.simpleName}")
         }
         
-        // 方案2: HardwareBuffer.lock() 手动读取像素
-        return lockAndCopyPixels(hardwareBuffer, width, height, format)
-    }
-    
-    /**
-     * 方案2: 通过HardwareBuffer.lock()将GPU buffer映射到CPU可读内存
-     * 然后手动逐行拷贝像素数据，创建ARGB_8888 Bitmap
-     */
-    @Suppress("DEPRECATION")
-    private fun lockAndCopyPixels(hardwareBuffer: HardwareBuffer, width: Int, height: Int, format: Int): Bitmap? {
+        // 方案2: Image.newInstance反射 + getPlanes读像素
         try {
-            // lock方法签名: lock(long usage, Rect fence, Handler handler)
-            // 或者简单版: lock(long usage)  (API 29+)
-            var nativePtr: Long = 0
-            try {
-                // 尝试3参数版本
-                val lockMethod = HardwareBuffer::class.java.getMethod(
-                    "lock", Long::class.javaPrimitiveType, android.graphics.Rect::class.java, Handler::class.java
-                )
-                nativePtr = lockMethod.invoke(hardwareBuffer, HardwareBuffer.USAGE_CPU_READ_OFTEN.toLong(), null, null) as? Long ?: 0L
-            } catch (e: NoSuchMethodException) {
-                // 尝试1参数版本
-                val lockMethod = HardwareBuffer::class.java.getMethod(
-                    "lock", Long::class.javaPrimitiveType
-                )
-                nativePtr = lockMethod.invoke(hardwareBuffer, HardwareBuffer.USAGE_CPU_READ_OFTEN.toLong()) as? Long ?: 0L
-            }
-            
-            if (nativePtr == 0L) {
-                Log.w(TAG, "HardwareBuffer.lock返回空指针")
-                return tryPixelCopy(hardwareBuffer, width, height)
-            }
-            
-            try {
-                // nativePtr指向的是GPU buffer的CPU映射地址
-                // 格式可能是 RGBA_8888(1) 或 RGBX_8888(2) 或其他
-                // 直接用Unsafe或ByteBuffer读取
-                // 这里用更简单的方式：创建一个等大的Bitmap然后用PixelCopy
-                
-                // 实际上lock拿到nativePtr后，Java层不方便直接读
-                // 改用PixelCopy方案
-                Log.d(TAG, "lock成功，nativePtr=$nativePtr，改用PixelCopy")
-                return tryPixelCopy(hardwareBuffer, width, height)
-            } finally {
-                try {
-                    val unlockMethod = HardwareBuffer::class.java.getMethod("unlock")
-                    unlockMethod.invoke(hardwareBuffer)
-                } catch (_: Exception) {}
+            val bitmap = imageReflectionRead(hardwareBuffer, width, height, format)
+            if (bitmap != null) {
+                Log.d(TAG, "✅ Image反射成功")
+                lastDiagnostic = "截图OK(Image反射)"
+                return bitmap
             }
         } catch (e: Exception) {
-            Log.w(TAG, "lock方案失败: ${e.javaClass.simpleName}: ${e.message}")
+            Log.w(TAG, "Image反射失败: ${e.javaClass.simpleName}: ${e.message}")
         }
         
-        return tryPixelCopy(hardwareBuffer, width, height)
-    }
-    
-    /**
-     * 方案3: 使用 android.view.PixelCopy 从HardwareBuffer拷贝到Bitmap
-     * PixelCopy不依赖wrapHardwareBuffer，是更底层的像素拷贝方式
-     */
-    private fun tryPixelCopy(hardwareBuffer: HardwareBuffer, width: Int, height: Int): Bitmap? {
-        // PixelCopy.request(Window, Bitmap, OnPixelCopyFinishedListener, Handler)
-        // 或者 PixelCopy.request(Surface, Bitmap, ...)
-        // 但我们没有Window/Surface... 
-        // PixelCopy不直接支持HardwareBuffer
-        
-        // 换思路: 用MediaImage反射
-        return tryImageReflection(hardwareBuffer, width, height)
-    }
-    
-    /**
-     * 方案4: 反射 Image.newInstance 从HardwareBuffer创建Image
-     * 然后通过Image.getPlanes()读取像素数据
-     */
-    private fun tryImageReflection(hardwareBuffer: HardwareBuffer, width: Int, height: Int): Bitmap? {
+        // 方案3: SurfaceControl.screenshot() 完全不同的截图路径
         try {
-            val imageClass = Class.forName("android.media.Image")
-            
-            // Image.newInstance(HardwareBuffer, int, long) - API 29+ 隐藏API
-            // 参数: hardwareBuffer, format(0=unknown), timestamp
-            val newInstanceMethod = imageClass.getDeclaredMethod(
+            val bitmap = surfaceControlScreenshot(width, height)
+            if (bitmap != null) {
+                Log.d(TAG, "✅ SurfaceControl截图成功")
+                lastDiagnostic = "截图OK(SurfaceControl)"
+                return bitmap
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "SurfaceControl失败: ${e.javaClass.simpleName}: ${e.message}")
+        }
+        
+        lastDiagnostic = "全部失败: fmt=$format"
+        return null
+    }
+    
+    /**
+     * 方案2: Image.newInstance 反射读取像素
+     */
+    private fun imageReflectionRead(hardwareBuffer: HardwareBuffer, width: Int, height: Int, format: Int): Bitmap? {
+        val imageClass = Class.forName("android.media.Image")
+        
+        // 尝试多种方法签名
+        val image = try {
+            // 签名1: newInstance(HardwareBuffer, int format, long timestamp)
+            val m = imageClass.getDeclaredMethod(
                 "newInstance", HardwareBuffer::class.java, Int::class.javaPrimitiveType, Long::class.javaPrimitiveType
             )
-            newInstanceMethod.isAccessible = true
-            
-            // format=0 表示UNKNOWN，让系统从HardwareBuffer推断
-            // timestamp=0
-            val image = newInstanceMethod.invoke(null, hardwareBuffer, 0, 0L) ?: run {
-                // 尝试另一种签名: newInstance(HardwareBuffer, int)
-                val altMethod = imageClass.getDeclaredMethod(
+            m.isAccessible = true
+            m.invoke(null, hardwareBuffer, format, 0L)
+        } catch (e: Exception) {
+            Log.d(TAG, "Image.newInstance(3参数)失败: ${e.message}")
+            try {
+                // 签名2: newInstance(HardwareBuffer, int numPlanes)
+                val m = imageClass.getDeclaredMethod(
                     "newInstance", HardwareBuffer::class.java, Int::class.javaPrimitiveType
                 )
-                altMethod.isAccessible = true
-                altMethod.invoke(null, hardwareBuffer, 1) ?: return null
+                m.isAccessible = true
+                m.invoke(null, hardwareBuffer, 1)
+            } catch (e2: Exception) {
+                Log.d(TAG, "Image.newInstance(2参数)也失败: ${e2.message}")
+                null
+            }
+        } ?: return null
+        
+        try {
+            val getPlanesMethod = imageClass.getMethod("getPlanes")
+            @Suppress("UNCHECKED_CAST")
+            val planes = getPlanesMethod.invoke(image) as? Array<Any>
+            if (planes == null || planes.isEmpty()) {
+                Log.w(TAG, "Image.getPlanes返回空")
+                return null
             }
             
-            try {
-                val getPlanesMethod = imageClass.getMethod("getPlanes")
-                @Suppress("UNCHECKED_CAST")
-                val planes = getPlanesMethod.invoke(image) as? Array<Any>
-                
-                if (planes == null || planes.isEmpty()) {
-                    Log.w(TAG, "Image.getPlanes返回空")
-                    return null
-                }
-                
-                val plane = planes[0]
-                val planeClass = plane.javaClass
-                
-                val getBufferMethod = planeClass.getMethod("getBuffer")
-                val buffer = getBufferMethod.invoke(plane) as? java.nio.ByteBuffer
-                
-                val getRowStrideMethod = planeClass.getMethod("getRowStride")
-                val rowStride = getRowStrideMethod.invoke(plane) as Int
-                
-                val getPixelStrideMethod = planeClass.getMethod("getPixelStride")
-                val pixelStride = getRowStrideMethod.invoke(plane) as Int
-                
-                if (buffer == null) {
-                    Log.w(TAG, "Plane.getBuffer返回null")
-                    return null
-                }
-                
-                Log.d(TAG, "Image planes: rowStride=$rowStride pixelStride=$pixelStride bufCap=${buffer.capacity()}")
-                
-                val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                buffer.rewind()
-                
-                // 逐行逐像素读取，处理stride和pixelStride
+            val plane = planes[0]
+            val planeClass = plane.javaClass
+            
+            val buffer = planeClass.getMethod("getBuffer").invoke(plane) as? java.nio.ByteBuffer
+            if (buffer == null) {
+                Log.w(TAG, "Plane.getBuffer返回null")
+                return null
+            }
+            
+            val rowStride = planeClass.getMethod("getRowStride").invoke(plane) as Int
+            val pixelStride = planeClass.getMethod("getPixelStride").invoke(plane) as Int
+            
+            Log.d(TAG, "Image planes: rowStride=$rowStride pixelStride=$pixelStride bufCap=${buffer.capacity()}")
+            
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            buffer.rewind()
+            
+            if (pixelStride == 4) {
+                // RGBA_8888格式，可以批量读取
                 val rowBytes = width * 4
-                val pixels = IntArray(width)
+                val pixels = IntArray(width * height)
                 
+                if (rowStride == rowBytes) {
+                    // 连续排列，最快
+                    buffer.asIntBuffer().get(pixels)
+                    for (i in pixels.indices) {
+                        val rgba = pixels[i]
+                        pixels[i] = (rgba ushr 8) or (rgba shl 24) // RGBA→ARGB
+                    }
+                    bitmap.setPixels(pixels, 0, width, 0, 0, width, height)
+                } else {
+                    // 有行padding
+                    for (y in 0 until height) {
+                        buffer.position(y * rowStride)
+                        val rowPixels = IntArray(width)
+                        val intBuf = buffer.asIntBuffer()
+                        intBuf.limit(width)
+                        intBuf.get(rowPixels)
+                        for (i in rowPixels.indices) {
+                            val rgba = rowPixels[i]
+                            rowPixels[i] = (rgba ushr 8) or (rgba shl 24)
+                        }
+                        bitmap.setPixels(rowPixels, 0, width, 0, y, width, 1)
+                    }
+                }
+            } else {
+                // 非标准pixelStride，逐像素读
                 for (y in 0 until height) {
+                    val pixels = IntArray(width)
                     for (x in 0 until width) {
                         val pos = y * rowStride + x * pixelStride
                         if (pos + 3 < buffer.capacity()) {
@@ -212,20 +193,89 @@ object ScreenshotHelper {
                     }
                     bitmap.setPixels(pixels, 0, width, 0, y, width, 1)
                 }
-                
-                Log.d(TAG, "✅ Image反射读取像素成功")
-                return bitmap
-                
-            } finally {
-                try {
-                    val closeMethod = imageClass.getMethod("close")
-                    closeMethod.invoke(image)
-                } catch (_: Exception) {}
             }
-        } catch (e: Exception) {
-            Log.w(TAG, "Image反射失败: ${e.javaClass.simpleName}: ${e.message}")
-            return null
+            
+            return bitmap
+        } finally {
+            try { imageClass.getMethod("close").invoke(image) } catch (_: Exception) {}
         }
+    }
+    
+    /**
+     * 方案3: SurfaceControl.screenshot() - 完全不同的截图路径
+     * 不经过takeScreenshot/HardwareBuffer，直接返回Bitmap
+     */
+    private fun surfaceControlScreenshot(width: Int, height: Int): Bitmap? {
+        val scClass = Class.forName("android.view.SurfaceControl")
+        
+        // 尝试多种方法签名
+        // API 34+: screenshot(IBinder, Rect, int, int, boolean, int)
+        // API 33: screenshot(IBinder, Rect, int, int, int, boolean, int)  
+        // 更老: screenshot(Rect, int, int, int)
+        
+        try {
+            // 获取默认display token
+            val getInternalDisplayToken = scClass.getDeclaredMethod("getInternalDisplayToken")
+            getInternalDisplayToken.isAccessible = true
+            val displayToken = getInternalDisplayToken.invoke(null) ?: return null
+            
+            val crop = Rect(0, 0, width, height)
+            
+            // 先试5参数版本 (API 34+)
+            try {
+                val method = scClass.getDeclaredMethod(
+                    "screenshot",
+                    android.os.IBinder::class.java, Rect::class.java,
+                    Int::class.javaPrimitiveType, Int::class.javaPrimitiveType,
+                    Boolean::class.javaPrimitiveType, Int::class.javaPrimitiveType
+                )
+                method.isAccessible = true
+                val result = method.invoke(null, displayToken, crop, width, height, false, 0)
+                if (result is Bitmap) return result
+            } catch (_: Exception) {}
+            
+            // 试6参数版本 (API 33)
+            try {
+                val method = scClass.getDeclaredMethod(
+                    "screenshot",
+                    android.os.IBinder::class.java, Rect::class.java,
+                    Int::class.javaPrimitiveType, Int::class.javaPrimitiveType,
+                    Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType,
+                    Int::class.javaPrimitiveType
+                )
+                method.isAccessible = true
+                val result = method.invoke(null, displayToken, crop, width, height, 0, false, 0)
+                if (result is Bitmap) return result
+            } catch (_: Exception) {}
+            
+            // 试4参数版本 (老API)
+            try {
+                val method = scClass.getDeclaredMethod(
+                    "screenshot",
+                    Rect::class.java, Int::class.javaPrimitiveType,
+                    Int::class.javaPrimitiveType, Int::class.javaPrimitiveType
+                )
+                method.isAccessible = true
+                val result = method.invoke(null, crop, width, height, 0)
+                if (result is Bitmap) return result
+            } catch (_: Exception) {}
+            
+            // 试3参数版本
+            try {
+                val method = scClass.getDeclaredMethod(
+                    "screenshot",
+                    Rect::class.java, Int::class.javaPrimitiveType, Int::class.javaPrimitiveType
+                )
+                method.isAccessible = true
+                val result = method.invoke(null, crop, width, height)
+                if (result is Bitmap) return result
+            } catch (_: Exception) {}
+            
+        } catch (e: Exception) {
+            Log.w(TAG, "SurfaceControl完全失败: ${e.message}")
+        }
+        
+        return null
     }
     
     /**
@@ -233,7 +283,7 @@ object ScreenshotHelper {
      */
     fun captureScreen(service: AccessibilityService): Bitmap? {
         if (Build.VERSION.SDK_INT < 30) {
-            lastError = "系统版本低于Android 11，不支持截图"
+            lastError = "需Android 11+"
             return null
         }
         
@@ -245,9 +295,7 @@ object ScreenshotHelper {
         try {
             val displayId = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 service.display?.displayId ?: 0
-            } else {
-                0
-            }
+            } else { 0 }
             
             val callbackClass = Class.forName("android.accessibilityservice.AccessibilityService\$TakeScreenshotCallback")
             val screenshotClass = Class.forName("android.accessibilityservice.AccessibilityService\$Screenshot")
@@ -268,30 +316,23 @@ object ScreenshotHelper {
                             if (hardwareBuffer != null) {
                                 resultBitmap = hardwareBufferToBitmap(hardwareBuffer)
                                 if (resultBitmap == null) {
-                                    captureError = "所有Bitmap创建方案失败(format=${hardwareBuffer.format}, w=${hardwareBuffer.width}, h=${hardwareBuffer.height})"
+                                    // 用short消息
+                                    captureError = "fmt=${hardwareBuffer.format}不可读"
                                 }
                                 hardwareBuffer.close()
                             } else {
-                                captureError = "hardwareBuffer为null"
+                                captureError = "hwBuf=null"
                             }
                             screenshotClass.getMethod("close").invoke(screenshot)
                         } catch (e: Exception) {
-                            captureError = "onSuccess异常: ${e.javaClass.simpleName}: ${e.message?.take(200)}"
-                            Log.e(TAG, "Error processing screenshot", e)
+                            captureError = "${e.javaClass.simpleName}"
                         }
                         latch.countDown()
                         null
                     }
                     "onFailure" -> {
                         val errorCode = args[0] as? Int ?: -1
-                        val errorName = when (errorCode) {
-                            1 -> "INVALID_DISPLAY"
-                            3 -> "INTERNAL_ERROR"
-                            4 -> "NO_ACCESSIBILITY(请关闭再重新开启无障碍服务)"
-                            else -> "UNKNOWN($errorCode)"
-                        }
-                        captureError = "takeScreenshot onFailure: $errorName"
-                        Log.e(TAG, captureError!!)
+                        captureError = "err=$errorCode"
                         latch.countDown()
                         null
                     }
@@ -308,22 +349,19 @@ object ScreenshotHelper {
             
             takeScreenshotMethod.invoke(service, displayId, executor, callback)
             
-            val awaited = latch.await(5, TimeUnit.SECONDS)
-            if (!awaited) {
-                captureError = "截图超时(5秒无回调)"
+            if (!latch.await(5, TimeUnit.SECONDS)) {
+                captureError = "超时"
             }
             
         } catch (e: SecurityException) {
-            captureError = "SecurityException: 请关闭再重新开启无障碍服务"
-            Log.e(TAG, captureError!!, e)
+            captureError = "请重开无障碍"
         } catch (e: Exception) {
-            captureError = "截图异常: ${e.javaClass.simpleName}: ${e.message}"
-            Log.e(TAG, captureError!!, e)
+            captureError = e.javaClass.simpleName
         }
         
         if (resultBitmap == null) {
-            lastError = captureError ?: "未知截图失败"
-            Log.w(TAG, "截图失败: $lastError")
+            lastError = captureError ?: "未知失败"
+            Log.w(TAG, "截图失败: $lastError diag=$lastDiagnostic")
         }
         
         return resultBitmap
@@ -339,48 +377,31 @@ object ScreenshotHelper {
     
     fun checkPixelRange(
         bitmap: Bitmap, x: Int, y: Int,
-        checkR: (Int) -> Boolean,
-        checkG: (Int) -> Boolean,
-        checkB: (Int) -> Boolean
+        checkR: (Int) -> Boolean, checkG: (Int) -> Boolean, checkB: (Int) -> Boolean
     ): Boolean {
         if (x < 0 || x >= bitmap.width || y < 0 || y >= bitmap.height) return false
         val pixel = bitmap.getPixel(x, y)
-        val r = android.graphics.Color.red(pixel)
-        val g = android.graphics.Color.green(pixel)
-        val b = android.graphics.Color.blue(pixel)
-        return checkR(r) && checkG(g) && checkB(b)
+        return checkR(android.graphics.Color.red(pixel)) &&
+               checkG(android.graphics.Color.green(pixel)) &&
+               checkB(android.graphics.Color.blue(pixel))
     }
     
     fun searchPixel(
         bitmap: Bitmap,
         searchLeft: Int, searchTop: Int, searchRight: Int, searchBottom: Int,
-        checkR: (Int) -> Boolean,
-        checkG: (Int) -> Boolean,
-        checkB: (Int) -> Boolean,
+        checkR: (Int) -> Boolean, checkG: (Int) -> Boolean, checkB: (Int) -> Boolean,
         stepX: Int = 4, stepY: Int = 4
     ): Pair<Int, Int>? {
         for (y in searchTop.coerceAtLeast(0) until searchBottom.coerceAtMost(bitmap.height) step stepY) {
             for (x in searchLeft.coerceAtLeast(0) until searchRight.coerceAtMost(bitmap.width) step stepX) {
-                if (checkPixelRange(bitmap, x, y, checkR, checkG, checkB)) {
-                    return x to y
-                }
+                if (checkPixelRange(bitmap, x, y, checkR, checkG, checkB)) return x to y
             }
         }
         return null
     }
     
-    fun waitForPixel(
-        service: AccessibilityService,
-        x: Int, y: Int,
-        targetColor: Int,
-        timeoutMs: Long = 30000,
-        intervalMs: Long = 500,
-        tolerance: Int = 30
-    ): Boolean {
-        if (!isSupported) {
-            try { Thread.sleep(timeoutMs) } catch (_: InterruptedException) {}
-            return false
-        }
+    fun waitForPixel(service: AccessibilityService, x: Int, y: Int, targetColor: Int, timeoutMs: Long = 30000, intervalMs: Long = 500, tolerance: Int = 30): Boolean {
+        if (!isSupported) { try { Thread.sleep(timeoutMs) } catch (_: InterruptedException) {}; return false }
         val startTime = System.currentTimeMillis()
         while (System.currentTimeMillis() - startTime < timeoutMs) {
             val bitmap = captureScreen(service) ?: continue
@@ -392,18 +413,8 @@ object ScreenshotHelper {
         return false
     }
     
-    fun waitForPixelNot(
-        service: AccessibilityService,
-        x: Int, y: Int,
-        targetColor: Int,
-        timeoutMs: Long = 5000,
-        intervalMs: Long = 500,
-        tolerance: Int = 30
-    ): Boolean {
-        if (!isSupported) {
-            try { Thread.sleep(timeoutMs) } catch (_: InterruptedException) {}
-            return false
-        }
+    fun waitForPixelNot(service: AccessibilityService, x: Int, y: Int, targetColor: Int, timeoutMs: Long = 30000, intervalMs: Long = 500, tolerance: Int = 30): Boolean {
+        if (!isSupported) { try { Thread.sleep(timeoutMs) } catch (_: InterruptedException) {}; return false }
         val startTime = System.currentTimeMillis()
         while (System.currentTimeMillis() - startTime < timeoutMs) {
             val bitmap = captureScreen(service) ?: continue

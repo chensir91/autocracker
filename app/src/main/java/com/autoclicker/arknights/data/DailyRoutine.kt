@@ -360,12 +360,12 @@ class DailyRoutine(
             log("📷 预检截图权限...")
             val testBmp = screenshot()
             if (testBmp == null) {
-                val detail = ScreenshotHelper.lastError ?: "未知原因"
-                log("❌ 截图失败！原因: $detail")
-                val userMsg = if (detail.contains("NO_ACCESSIBILITY") || detail.contains("SecurityException")) {
-                    "截图权限未生效，请在系统设置中【关闭再重新开启】无障碍服务"
-                } else {
-                    "截图失败: $detail"
+                val detail = ScreenshotHelper.lastError ?: "未知"
+                val diag = ScreenshotHelper.lastDiagnostic ?: ""
+                log("❌ 截图失败: $detail | $diag")
+                val userMsg = when {
+                    detail.contains("err=4") || detail.contains("请重开无障碍") -> "截图权限未生效，请关闭再重新开启无障碍服务"
+                    else -> "截图失败: $detail"
                 }
                 onError?.invoke(userMsg)
                 isRunning = false
@@ -463,12 +463,12 @@ class DailyRoutine(
             log("📷 预检截图权限...")
             val testBmp = screenshot()
             if (testBmp == null) {
-                val detail = ScreenshotHelper.lastError ?: "未知原因"
-                log("❌ 截图失败！原因: $detail")
-                val userMsg = if (detail.contains("NO_ACCESSIBILITY") || detail.contains("SecurityException")) {
-                    "截图权限未生效，请在系统设置中【关闭再重新开启】无障碍服务"
-                } else {
-                    "截图失败: $detail"
+                val detail = ScreenshotHelper.lastError ?: "未知"
+                val diag = ScreenshotHelper.lastDiagnostic ?: ""
+                log("❌ 截图失败: $detail | $diag")
+                val userMsg = when {
+                    detail.contains("err=4") || detail.contains("请重开无障碍") -> "截图权限未生效，请关闭再重新开启无障碍服务"
+                    else -> "截图失败: $detail"
                 }
                 onError?.invoke(userMsg)
                 onAction?.invoke(TestAction.Error(userMsg))
