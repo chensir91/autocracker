@@ -13,10 +13,10 @@ import java.util.concurrent.TimeUnit
 
 /**
  * 截图辅助工具 v3.0
- * - API 33+: 使用公开 API（takeScreenshot / TakeScreenshotCallback / Screenshot）
- * - API 30-32: 使用反射调用隐藏 API
  * - 新增 lastError：记录最近一次截图失败的详细原因
- * - 修复 Bitmap.wrapHardwareBuffer ColorSpace 问题
+ * - 修复 Bitmap.wrapHardwareBuffer ColorSpace 问题（null→SRGB）
+ * - 新增详细 onFailure 错误码解读
+ * - 新增 SecurityException 专门捕获（权限未生效）
  */
 object ScreenshotHelper {
     private const val TAG = "ScreenshotHelper"
@@ -29,8 +29,8 @@ object ScreenshotHelper {
         private set
     
     /**
-     * 截取屏幕
-     * API 33+ 使用公开 API；API 30-32 使用反射
+     * 截取屏幕（通过反射调用 AccessibilityService.takeScreenshot）
+     * API 33+ 是公开API但SDK stubs可能未暴露，统一用反射
      */
     fun captureScreen(service: AccessibilityService): Bitmap? {
         if (Build.VERSION.SDK_INT < 30) {
@@ -50,18 +50,31 @@ object ScreenshotHelper {
                 0
             }
             
+            val callbackClass = Class.forName("android.accessibilityservice.AccessibilityService\$TakeScreenshotCallback")
+            val screenshotClass = Class.forName("android.accessibilityservice.AccessibilityService\$Screenshot")
+            
             val executor = Executor { runnable ->
                 Handler(Looper.getMainLooper()).post(runnable)
             }
             
-            if (Build.VERSION.SDK_INT >= 33) {
-                // ===== API 33+: 使用公开 API =====
-                service.takeScreenshot(displayId, executor, object : AccessibilityService.TakeScreenshotCallback {
-                    override fun onSuccess(screenshot: AccessibilityService.Screenshot) {
+            val callback = java.lang.reflect.Proxy.newProxyInstance(
+                callbackClass.classLoader,
+                arrayOf(callbackClass)
+            ) { _, method, args ->
+                when (method.name) {
+                    "onSuccess" -> {
                         try {
-                            val hardwareBuffer = screenshot.hardwareBuffer
+                            val screenshot = args[0]
+                            val hardwareBuffer = screenshotClass.getMethod("getHardwareBuffer").invoke(screenshot) as? android.hardware.HardwareBuffer
                             if (hardwareBuffer != null) {
-                                val colorSpace = ColorSpace.get(ColorSpace.Named.SRGB)
+                                // 修复: ColorSpace传null在某些设备上wrapHardwareBuffer返回null
+                                // 使用SRGB作为默认ColorSpace
+                                val colorSpace = try {
+                                    @Suppress("DEPRECATION")
+                                    ColorSpace.get(ColorSpace.Named.SRGB)
+                                } catch (e: Exception) {
+                                    null
+                                }
                                 resultBitmap = Bitmap.wrapHardwareBuffer(hardwareBuffer, colorSpace)
                                     ?.copy(Bitmap.Config.ARGB_8888, false)
                                 if (resultBitmap == null) {
@@ -71,84 +84,39 @@ object ScreenshotHelper {
                             } else {
                                 captureError = "hardwareBuffer为null"
                             }
-                            screenshot.close()
+                            screenshotClass.getMethod("close").invoke(screenshot)
                         } catch (e: Exception) {
                             captureError = "处理截图异常: ${e.javaClass.simpleName}: ${e.message}"
                             Log.e(TAG, "Error processing screenshot", e)
                         }
                         latch.countDown()
+                        null
                     }
-                    
-                    override fun onFailure(errorCode: Int) {
+                    "onFailure" -> {
+                        val errorCode = args[0] as? Int ?: -1
                         val errorName = when (errorCode) {
-                            1 -> "INVALID_DISPLAY(无效显示器)"
-                            3 -> "INTERNAL_ERROR(内部错误)"
-                            4 -> "NO_ACCESSIBILITY(缺少截图权限!请关闭再重新开启无障碍服务)"
+                            1 -> "INVALID_DISPLAY(无效显示器ID)"
+                            3 -> "INTERNAL_ERROR(系统内部错误)"
+                            4 -> "NO_ACCESSIBILITY(截图权限未授予!请关闭再重新开启无障碍服务)"
                             else -> "UNKNOWN($errorCode)"
                         }
-                        captureError = "takeScreenshot失败: $errorName"
+                        captureError = "takeScreenshot onFailure: $errorName"
                         Log.e(TAG, captureError!!)
                         latch.countDown()
+                        null
                     }
-                })
-            } else {
-                // ===== API 30-32: 使用反射调用隐藏 API =====
-                val callbackClass = Class.forName("android.accessibilityservice.AccessibilityService\$TakeScreenshotCallback")
-                val screenshotClass = Class.forName("android.accessibilityservice.AccessibilityService\$Screenshot")
-                
-                val callback = java.lang.reflect.Proxy.newProxyInstance(
-                    callbackClass.classLoader,
-                    arrayOf(callbackClass)
-                ) { _, method, args ->
-                    when (method.name) {
-                        "onSuccess" -> {
-                            try {
-                                val screenshot = args[0]
-                                val hardwareBuffer = screenshotClass.getMethod("getHardwareBuffer").invoke(screenshot) as? android.hardware.HardwareBuffer
-                                if (hardwareBuffer != null) {
-                                    resultBitmap = Bitmap.wrapHardwareBuffer(hardwareBuffer, null)
-                                        ?.copy(Bitmap.Config.ARGB_8888, false)
-                                    if (resultBitmap == null) {
-                                        captureError = "wrapHardwareBuffer返回null(反射, format=${hardwareBuffer.format})"
-                                    }
-                                    hardwareBuffer.close()
-                                } else {
-                                    captureError = "hardwareBuffer为null(反射)"
-                                }
-                                screenshotClass.getMethod("close").invoke(screenshot)
-                            } catch (e: Exception) {
-                                captureError = "处理截图异常(反射): ${e.javaClass.simpleName}: ${e.message}"
-                                Log.e(TAG, "Error processing screenshot", e)
-                            }
-                            latch.countDown()
-                            null
-                        }
-                        "onFailure" -> {
-                            val errorCode = args[0] as? Int ?: -1
-                            val errorName = when (errorCode) {
-                                1 -> "INVALID_DISPLAY"
-                                3 -> "INTERNAL_ERROR"
-                                4 -> "NO_ACCESSIBILITY(缺少截图权限!)"
-                                else -> "UNKNOWN($errorCode)"
-                            }
-                            captureError = "takeScreenshot失败(反射): $errorName"
-                            Log.e(TAG, captureError!!)
-                            latch.countDown()
-                            null
-                        }
-                        else -> null
-                    }
+                    else -> null
                 }
-                
-                val takeScreenshotMethod = AccessibilityService::class.java.getMethod(
-                    "takeScreenshot",
-                    Int::class.javaPrimitiveType,
-                    java.util.concurrent.Executor::class.java,
-                    callbackClass
-                )
-                
-                takeScreenshotMethod.invoke(service, displayId, executor, callback)
             }
+            
+            val takeScreenshotMethod = AccessibilityService::class.java.getMethod(
+                "takeScreenshot",
+                Int::class.javaPrimitiveType,
+                java.util.concurrent.Executor::class.java,
+                callbackClass
+            )
+            
+            takeScreenshotMethod.invoke(service, displayId, executor, callback)
             
             val awaited = latch.await(5, TimeUnit.SECONDS)
             if (!awaited) {
@@ -157,7 +125,10 @@ object ScreenshotHelper {
             }
             
         } catch (e: SecurityException) {
-            captureError = "SecurityException: 截图权限未授予，请关闭再重新开启无障碍服务"
+            captureError = "SecurityException: 截图权限未生效，请在系统设置中【关闭再重新开启】无障碍服务"
+            Log.e(TAG, captureError!!, e)
+        } catch (e: NoSuchMethodException) {
+            captureError = "NoSuchMethodException: takeScreenshot方法不存在，系统版本不兼容"
             Log.e(TAG, captureError!!, e)
         } catch (e: Exception) {
             captureError = "截图异常: ${e.javaClass.simpleName}: ${e.message}"
@@ -186,7 +157,6 @@ object ScreenshotHelper {
     /**
      * RGB 范围判断
      * 传入 R/G/B 各自的验证函数，返回是否全部满足
-     * 示例: checkPixelRange(bmp, x, y, { it > 220 }, { it > 180 }, { it < 80 })
      */
     fun checkPixelRange(
         bitmap: Bitmap, x: Int, y: Int,
@@ -205,7 +175,6 @@ object ScreenshotHelper {
     /**
      * 在区域内搜索满足条件的像素点
      * 返回第一个满足条件的坐标，未找到返回 null
-     * 用于访问下位、信用翻页等坐标不固定的场景
      */
     fun searchPixel(
         bitmap: Bitmap,
@@ -237,7 +206,7 @@ object ScreenshotHelper {
         tolerance: Int = 30
     ): Boolean {
         if (!isSupported) {
-            android.util.Log.w(TAG, "Screenshot not supported, falling back to fixed wait")
+            Log.w(TAG, "Screenshot not supported, falling back to fixed wait")
             try { Thread.sleep(timeoutMs) } catch (_: InterruptedException) {}
             return false
         }
@@ -249,7 +218,7 @@ object ScreenshotHelper {
             if (matched) return true
             try { Thread.sleep(intervalMs) } catch (_: InterruptedException) { return false }
         }
-        android.util.Log.w(TAG, "waitForPixel timeout at ($x,$y)")
+        Log.w(TAG, "waitForPixel timeout at ($x,$y)")
         return false
     }
     
@@ -276,7 +245,7 @@ object ScreenshotHelper {
             if (notMatched) return true
             try { Thread.sleep(intervalMs) } catch (_: InterruptedException) { return false }
         }
-        android.util.Log.w(TAG, "waitForPixelNot timeout at ($x,$y)")
+        Log.w(TAG, "waitForPixelNot timeout at ($x,$y)")
         return false
     }
 }
