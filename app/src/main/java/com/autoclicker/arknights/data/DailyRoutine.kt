@@ -211,7 +211,7 @@ class DailyRoutine(
             }
             delay(intervalMs)
         }
-        log("❌ ${rule.name} 区域搜索超时 ${timeoutMs}ms (截图$screenshotAttempts次, 失败$screenshotFails次)")
+        log("❌ ${rule.name} 区域搜索超时 ${timeoutMs}ms (截图${screenshotAttempts}次, 失败${screenshotFails}次)")
         return false
     }
     
