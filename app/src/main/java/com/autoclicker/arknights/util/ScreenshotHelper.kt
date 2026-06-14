@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit
  */
 object ScreenshotHelper {
     private const val TAG = "ScreenshotHelper"
-    private const val DIAG_FILE = "/sdcard/arknights_screenshot_diag.txt"
+    private var diagFile: String? = null
     
     val isSupported: Boolean
         get() = Build.VERSION.SDK_INT >= 30
@@ -46,9 +46,11 @@ object ScreenshotHelper {
     private fun diagLog(msg: String) {
         Log.d(TAG, msg)
         try {
+            val path = diagFile ?: return
             val ts = SimpleDateFormat("HH:mm:ss.SSS").format(Date())
-            File(DIAG_FILE).appendText("[$ts] $msg\n")
+            File(path).appendText("[$ts] $msg\n")
         } catch (_: Exception) {}
+    }
     }
     
     /**
@@ -469,6 +471,9 @@ object ScreenshotHelper {
         }
         
         lastError = null
+
+        // 初始化诊断日志路径（使用app自己的目录，不需要额外权限）
+        diagFile = "${service.getExternalFilesDir(null)?.absolutePath ?: service.filesDir.absolutePath}/screenshot_diag.txt"
         var resultBitmap: Bitmap? = null
         val latch = CountDownLatch(1)
         var captureError: String? = null

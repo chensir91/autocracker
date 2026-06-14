@@ -365,7 +365,7 @@ class DailyRoutine(
                 log("❌ 截图失败: $detail | $diag")
                 val userMsg = when {
                     detail.contains("err=4") || detail.contains("请重开无障碍") -> "截图权限未生效，请关闭再重新开启无障碍服务"
-                    else -> "截图失败: $detail"
+                    else -> "截图失败: $detail\n日志:${service.getExternalFilesDir(null)?.absolutePath ?: service.filesDir.absolutePath}/screenshot_diag.txt"
                 }
                 onError?.invoke(userMsg)
                 isRunning = false
@@ -468,7 +468,7 @@ class DailyRoutine(
                 log("❌ 截图失败: $detail | $diag")
                 val userMsg = when {
                     detail.contains("err=4") || detail.contains("请重开无障碍") -> "截图权限未生效，请关闭再重新开启无障碍服务"
-                    else -> "截图失败: $detail"
+                    else -> "截图失败: $detail\n日志:${service.getExternalFilesDir(null)?.absolutePath ?: service.filesDir.absolutePath}/screenshot_diag.txt"
                 }
                 onError?.invoke(userMsg)
                 onAction?.invoke(TestAction.Error(userMsg))
