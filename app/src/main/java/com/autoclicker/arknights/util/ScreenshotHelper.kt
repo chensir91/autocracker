@@ -34,8 +34,7 @@ object ScreenshotHelper {
         val width = hardwareBuffer.width
         val height = hardwareBuffer.height
         val format = hardwareBuffer.format
-        val stride = hardwareBuffer.stride
-        
+                
         Log.d(TAG, "HardwareBuffer: w=$width h=$height format=$format stride=$stride")
         
         // 方案1: wrapHardwareBuffer（标准高效方式）
@@ -74,7 +73,7 @@ object ScreenshotHelper {
         
         // 方案3: 直接读 HardwareBuffer 的 native buffer（最后手段）
         try {
-            val bitmap = directBufferRead(hardwareBuffer, width, height, stride)
+            val bitmap = directBufferRead(hardwareBuffer, width, height)
             if (bitmap != null) {
                 Log.d(TAG, "✅ 直接读取buffer兜底成功")
                 return bitmap
@@ -173,7 +172,7 @@ object ScreenshotHelper {
      * 方案3: 直接从HardwareBuffer的native指针读取像素
      * 使用HardwareBuffer的lock方法获取CPU可见的buffer地址
      */
-    private fun directBufferRead(hardwareBuffer: HardwareBuffer, width: Int, height: Int, stride: Int): Bitmap? {
+    private fun directBufferRead(hardwareBuffer: HardwareBuffer, width: Int, height: Int): Bitmap? {
         // HardwareBuffer.lock() 是 API 29+ 的方法
         // 但在 API 31+ 已被标记为 deprecated，仍然可用
         try {
