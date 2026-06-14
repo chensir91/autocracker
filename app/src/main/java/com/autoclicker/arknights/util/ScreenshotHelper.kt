@@ -35,7 +35,7 @@ object ScreenshotHelper {
         val height = hardwareBuffer.height
         val format = hardwareBuffer.format
                 
-        Log.d(TAG, "HardwareBuffer: w=$width h=$height format=$format stride=$stride")
+        Log.d(TAG, "HardwareBuffer: w=$width h=$height format=$format")
         
         // 方案1: wrapHardwareBuffer（标准高效方式）
         try {
