@@ -115,7 +115,6 @@ object ScreenshotHelper {
         // 保存回调结果
         var capturedHardwareBuffer: HardwareBuffer? = null
         var capturedColorSpace: ColorSpace? = null
-        var capturedScreenshotResult: ScreenshotResult? = null
         var callbackError: String? = null
         val latch = CountDownLatch(1)
 
@@ -139,7 +138,6 @@ object ScreenshotHelper {
                     try {
                         capturedHardwareBuffer = screenshot.hardwareBuffer
                         capturedColorSpace = screenshot.colorSpace
-                        capturedScreenshotResult = screenshot
                         diagLog("S2 回调成功: hwBuf=${capturedHardwareBuffer != null} cs=${capturedColorSpace != null}")
                     } catch (e: Throwable) {
                         callbackError = "cb:${e.javaClass.simpleName}:${e.message}"
@@ -208,12 +206,8 @@ object ScreenshotHelper {
                 captureError = "S5 hwBuf=null"
             }
 
-            // 关闭 ScreenshotResult (API 34+ 才有 close)
-            if (Build.VERSION.SDK_INT >= 34) {
-                try { capturedScreenshotResult?.close() } catch (e: Throwable) {
-                    diagLog("S6 screenshot.close异常: ${e.javaClass.simpleName}")
-                }
-            }
+            // ScreenshotResult 的 close() 在 compileSdk 不可用
+            // HardwareBuffer 已经单独关闭, 不需要再关闭 ScreenshotResult
 
         } catch (e: SecurityException) {
             captureError = "请重开无障碍"
