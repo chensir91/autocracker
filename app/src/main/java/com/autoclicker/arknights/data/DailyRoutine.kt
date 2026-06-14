@@ -98,9 +98,13 @@ class DailyRoutine(
         return rect.toAbs(screenWidth, screenHeight)
     }
     
-    /** 截图 */
+    /** 截图（带失败日志） */
     private fun screenshot(): Bitmap? {
-        return ScreenshotHelper.captureScreen(service)
+        val bmp = ScreenshotHelper.captureScreen(service)
+        if (bmp == null) {
+            Log.w(TAG, "截图返回null，可能缺少截图权限")
+        }
+        return bmp
     }
     
     /** 点击（百分比坐标） */
@@ -180,9 +184,24 @@ class DailyRoutine(
         intervalMs: Long = 500
     ): Boolean {
         val startTime = System.currentTimeMillis()
+        var screenshotAttempts = 0
+        var screenshotFails = 0
         while (System.currentTimeMillis() - startTime < timeoutMs && isRunning) {
             checkPaused()
-            val bmp = screenshot() ?: continue
+            screenshotAttempts++
+            val bmp = screenshot()
+            if (bmp == null) {
+                screenshotFails++
+                if (screenshotFails <= 3) {
+                    log("⚠️ 截图失败 (#$screenshotFails)")
+                    onAction?.invoke(TestAction.Wait(0f))  // 触发状态栏更新
+                } else if (screenshotFails % 10 == 0) {
+                    log("⚠️ 截图持续失败 ($screenshotFails/$screenshotAttempts)")
+                    onAction?.invoke(TestAction.Wait(0f))
+                }
+                delay(intervalMs)
+                continue
+            }
             val found = searchColor(bmp, area, rule)
             bmp.recycle()
             if (found != null) {
@@ -192,7 +211,7 @@ class DailyRoutine(
             }
             delay(intervalMs)
         }
-        log("❌ ${rule.name} 区域搜索超时 ${timeoutMs}ms")
+        log("❌ ${rule.name} 区域搜索超时 ${timeoutMs}ms (截图$screenshotAttempts次, 失败$screenshotFails次)")
         return false
     }
     
@@ -336,6 +355,20 @@ class DailyRoutine(
         
         runnerThread = Thread({
             log("🚀 一键肝舟启动！")
+            
+            // 截图权限预检
+            log("📷 预检截图权限...")
+            val testBmp = screenshot()
+            if (testBmp == null) {
+                log("❌ 截图失败！可能未授予截图权限")
+                onError?.invoke("截图失败，请在无障碍设置中授予截图权限")
+                isRunning = false
+                return@Thread
+            } else {
+                log("✅ 截图成功 (${testBmp.width}x${testBmp.height})")
+                testBmp.recycle()
+            }
+            
             onStateChanged?.invoke(currentState)
             
             try {
@@ -419,6 +452,21 @@ class DailyRoutine(
         
         runnerThread = Thread({
             log("🚀 测试模块启动: $module")
+            
+            // 截图权限预检：先尝试截一张，失败则直接报错
+            log("📷 预检截图权限...")
+            val testBmp = screenshot()
+            if (testBmp == null) {
+                log("❌ 截图失败！可能未授予截图权限")
+                onError?.invoke("截图失败，请在无障碍设置中授予截图权限")
+                onAction?.invoke(TestAction.Error("截图失败，请在无障碍设置中授予截图权限"))
+                onAction?.invoke(TestAction.ModuleDone(module))
+                isRunning = false
+                return@Thread
+            } else {
+                log("✅ 截图成功 (${testBmp.width}x${testBmp.height})")
+                testBmp.recycle()
+            }
             
             try {
                 when (module) {
