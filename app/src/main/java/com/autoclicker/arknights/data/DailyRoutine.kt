@@ -360,8 +360,14 @@ class DailyRoutine(
             log("📷 预检截图权限...")
             val testBmp = screenshot()
             if (testBmp == null) {
-                log("❌ 截图失败！可能未授予截图权限")
-                onError?.invoke("截图失败，请在无障碍设置中授予截图权限")
+                val detail = ScreenshotHelper.lastError ?: "未知原因"
+                log("❌ 截图失败！原因: $detail")
+                val userMsg = if (detail.contains("NO_ACCESSIBILITY") || detail.contains("SecurityException")) {
+                    "截图权限未生效，请在系统设置中【关闭再重新开启】无障碍服务"
+                } else {
+                    "截图失败: $detail"
+                }
+                onError?.invoke(userMsg)
                 isRunning = false
                 return@Thread
             } else {
@@ -457,9 +463,15 @@ class DailyRoutine(
             log("📷 预检截图权限...")
             val testBmp = screenshot()
             if (testBmp == null) {
-                log("❌ 截图失败！可能未授予截图权限")
-                onError?.invoke("截图失败，请在无障碍设置中授予截图权限")
-                onAction?.invoke(TestAction.Error("截图失败，请在无障碍设置中授予截图权限"))
+                val detail = ScreenshotHelper.lastError ?: "未知原因"
+                log("❌ 截图失败！原因: $detail")
+                val userMsg = if (detail.contains("NO_ACCESSIBILITY") || detail.contains("SecurityException")) {
+                    "截图权限未生效，请在系统设置中【关闭再重新开启】无障碍服务"
+                } else {
+                    "截图失败: $detail"
+                }
+                onError?.invoke(userMsg)
+                onAction?.invoke(TestAction.Error(userMsg))
                 onAction?.invoke(TestAction.ModuleDone(module))
                 isRunning = false
                 return@Thread
