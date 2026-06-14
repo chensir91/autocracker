@@ -1,6 +1,8 @@
 package com.autoclicker.arknights.util
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.AccessibilityService.TakeScreenshotCallback
+import android.accessibilityservice.AccessibilityService.ScreenshotResult
 import android.graphics.Bitmap
 import android.graphics.ColorSpace
 import android.graphics.Rect
@@ -10,6 +12,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import java.io.File
+import java.io.FileWriter
 import java.lang.reflect.Method
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -18,16 +21,18 @@ import java.util.concurrent.Executor
 import java.util.concurrent.TimeUnit
 
 /**
- * 截图辅助工具 v3.08
- * - 回调只保存HardwareBuffer引用，不在Proxy里做转换
- * - 所有转换在captureScreen主逻辑完成
- * - 4层兜底: wrap→lock+Unsafe→Image反射→SurfaceControl
- * - 诊断日志写app目录
- * - 隐藏API绕过
+ * 截图辅助工具 v3.09
+ * 
+ * v3.09 关键改动:
+ * - 使用公开API takeScreenshot() 替代反射 (API 30+ 是公开接口!)
+ * - 从 ScreenshotResult 获取正确的 ColorSpace
+ * - 回调只存引用, latch.await 后再转换
+ * - 每一步都有独立 step 标记的错误追踪
+ * - 诊断日志 + Toast 显示关键信息
  */
 object ScreenshotHelper {
     private const val TAG = "ScreenshotHelper"
-    const val VERSION = "3.08"
+    const val VERSION = "3.09"
 
     val isSupported: Boolean
         get() = Build.VERSION.SDK_INT >= 30
@@ -38,16 +43,21 @@ object ScreenshotHelper {
     var lastDiagnostic: String? = null
         private set
 
-    private var hiddenApiBypassed = false
     var diagFilePath: String? = null
+    private var hiddenApiBypassed = false
 
     fun diagLog(msg: String) {
         Log.d(TAG, msg)
         try {
             val path = diagFilePath ?: return
             val ts = SimpleDateFormat("HH:mm:ss.SSS").format(Date())
-            File(path).appendText("[$ts] $msg\n")
-        } catch (_: Exception) {}
+            val fw = FileWriter(path, true)
+            fw.write("[$ts] $msg\n")
+            fw.flush()
+            fw.close()
+        } catch (e: Exception) {
+            Log.e(TAG, "diagLog写入失败: ${e.message}")
+        }
     }
 
     fun bypassHiddenApiRestrictions() {
@@ -72,75 +82,230 @@ object ScreenshotHelper {
         }
     }
 
-    private fun hardwareBufferToBitmap(hardwareBuffer: HardwareBuffer): Bitmap? {
+    /**
+     * 截取屏幕 - 使用公开API
+     */
+    fun captureScreen(service: AccessibilityService): Bitmap? {
+        if (Build.VERSION.SDK_INT < 30) {
+            lastError = "需Android 11+"
+            return null
+        }
+
+        lastError = null
+        lastDiagnostic = null
+
+        // 初始化诊断日志
+        diagFilePath = try {
+            val dir = service.getExternalFilesDir(null) ?: service.filesDir
+            "${dir.absolutePath}/screenshot_diag.txt"
+        } catch (e: Exception) {
+            "${service.filesDir.absolutePath}/screenshot_diag.txt"
+        }
+
+        // 清空旧日志
+        try { File(diagFilePath!!).writeText("") } catch (_: Exception) {}
+
+        diagLog("===== captureScreen v$VERSION =====")
+        diagLog("设备: ${Build.MANUFACTURER} ${Build.MODEL} Android ${Build.VERSION.SDK_INT}")
+
+        var resultBitmap: Bitmap? = null
+        var stepError: String? = null
+        var captureError: String? = null
+
+        // 保存回调结果
+        var capturedHardwareBuffer: HardwareBuffer? = null
+        var capturedColorSpace: ColorSpace? = null
+        var capturedScreenshotResult: ScreenshotResult? = null
+        var callbackError: String? = null
+        val latch = CountDownLatch(1)
+
+        try {
+            // Step 1: 获取 displayId
+            val displayId = try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    service.display?.displayId ?: 0
+                } else 0
+            } catch (e: Exception) {
+                diagLog("⚠️ S1 displayId异常: ${e.message}")
+                0
+            }
+            diagLog("S1 displayId=$displayId")
+
+            // Step 2: 创建 executor 和 callback
+            val executor = Executor { runnable -> Handler(Looper.getMainLooper()).post(runnable) }
+
+            val callback = object : TakeScreenshotCallback {
+                override fun onSuccess(screenshot: ScreenshotResult) {
+                    try {
+                        capturedHardwareBuffer = screenshot.hardwareBuffer
+                        capturedColorSpace = screenshot.colorSpace
+                        capturedScreenshotResult = screenshot
+                        diagLog("S2 回调成功: hwBuf=${capturedHardwareBuffer != null} cs=${capturedColorSpace != null}")
+                    } catch (e: Throwable) {
+                        callbackError = "cb:${e.javaClass.simpleName}:${e.message}"
+                        diagLog("S2 回调异常: ${e.javaClass.simpleName}: ${e.message}")
+                    } finally {
+                        latch.countDown()
+                    }
+                }
+
+                override fun onFailure(errorCode: Int) {
+                    callbackError = "err=$errorCode"
+                    diagLog("S2 回调失败: errorCode=$errorCode")
+                    latch.countDown()
+                }
+            }
+
+            // Step 3: 调用公开API takeScreenshot
+            diagLog("S3 调用takeScreenshot...")
+            service.takeScreenshot(displayId, executor, callback)
+            diagLog("S3 takeScreenshot已调用, 等待回调...")
+
+            // Step 4: 等待回调
+            if (!latch.await(5, TimeUnit.SECONDS)) {
+                captureError = "S4超时"
+                diagLog("S4 latch.await超时5秒")
+            } else {
+                diagLog("S4 latch.await返回")
+            }
+
+            // Step 5: 检查回调结果
+            if (captureError == null && callbackError != null) {
+                captureError = callbackError
+                diagLog("S5 回调错误: $callbackError")
+            }
+
+            // Step 6: 转换 HardwareBuffer → Bitmap
+            if (captureError == null && capturedHardwareBuffer != null) {
+                try {
+                    val hwBuf = capturedHardwareBuffer!!
+                    diagLog("S6 开始转换: ${hwBuf.width}x${hwBuf.height} fmt=${hwBuf.format} usage=${hwBuf.usage}")
+                    resultBitmap = hardwareBufferToBitmap(hwBuf, capturedColorSpace)
+                } catch (e: Throwable) {
+                    diagLog("S6 转换逃逸异常: ${e.javaClass.simpleName}: ${e.message}")
+                    lastDiagnostic = "S6EXC:${e.javaClass.simpleName}"
+                }
+
+                if (resultBitmap == null) {
+                    // 安全获取format (可能异常)
+                    val fmtInfo = try {
+                        val hwBuf = capturedHardwareBuffer!!
+                        "f${hwBuf.format} ${hwBuf.width}x${hwBuf.height}"
+                    } catch (e: Throwable) {
+                        "fmtErr:${e.javaClass.simpleName}"
+                    }
+                    captureError = "S6 $fmtInfo ${lastDiagnostic ?: "ALL_FAIL"}"
+                    diagLog("S6 转换失败: $captureError")
+                } else {
+                    diagLog("S6 ✅ 截图成功: ${resultBitmap!!.width}x${resultBitmap!!.height}")
+                }
+
+                // 关闭 HardwareBuffer
+                try { capturedHardwareBuffer?.close() } catch (e: Throwable) {
+                    diagLog("S6 hwBuf.close异常: ${e.javaClass.simpleName}")
+                }
+            } else if (captureError == null && capturedHardwareBuffer == null) {
+                captureError = "S5 hwBuf=null"
+            }
+
+            // 关闭 ScreenshotResult
+            try { capturedScreenshotResult?.close() } catch (e: Throwable) {
+                diagLog("S6 screenshot.close异常: ${e.javaClass.simpleName}")
+            }
+
+        } catch (e: SecurityException) {
+            captureError = "请重开无障碍"
+            diagLog("SecurityException: ${e.message}")
+        } catch (e: Exception) {
+            captureError = "${e.javaClass.simpleName}"
+            diagLog("外层Exception: ${e.javaClass.simpleName}: ${e.message}")
+            // 打印堆栈到日志
+            try {
+                val sw = java.io.StringWriter()
+                e.printStackTrace(java.io.PrintWriter(sw))
+                diagLog("堆栈:\n${sw.toString().take(500)}")
+            } catch (_: Exception) {}
+        }
+
+        if (resultBitmap == null) {
+            lastError = captureError ?: "未知失败"
+            diagLog("❌ 最终失败: lastError=$lastError diag=$lastDiagnostic")
+        }
+
+        return resultBitmap
+    }
+
+    private fun hardwareBufferToBitmap(hardwareBuffer: HardwareBuffer, colorSpace: ColorSpace?): Bitmap? {
         val width = hardwareBuffer.width
         val height = hardwareBuffer.height
         val format = hardwareBuffer.format
         val usage = hardwareBuffer.usage
 
         lastDiagnostic = "fmt=$format ${width}x${height} u=$usage"
-        diagLog("===== 新截图 v$VERSION =====")
-        diagLog("HwBuf: ${width}x${height} fmt=$format usage=$usage")
+        diagLog("hardwareBufferToBitmap: ${width}x${height} fmt=$format usage=$usage cs=${colorSpace != null}")
 
         bypassHiddenApiRestrictions()
 
-        // 方案1: wrapHardwareBuffer
+        // 方案1: wrapHardwareBuffer (使用系统提供的ColorSpace)
         try {
-            val colorSpace = try {
+            val cs = colorSpace ?: try {
                 @Suppress("DEPRECATION")
                 ColorSpace.get(ColorSpace.Named.SRGB)
             } catch (_: Exception) { null }
-            val wrapped = Bitmap.wrapHardwareBuffer(hardwareBuffer, colorSpace)
+            diagLog("M1 wrapHardwareBuffer cs=${cs?.toString()?.take(30)}")
+            val wrapped = Bitmap.wrapHardwareBuffer(hardwareBuffer, cs)
             if (wrapped != null) {
                 val copy = wrapped.copy(Bitmap.Config.ARGB_8888, false)
                 wrapped.recycle()
                 if (copy != null) {
-                    diagLog("✅ wrapHardwareBuffer成功")
-                    lastDiagnostic = "OK(wrap)"
+                    diagLog("✅ M1 wrapHardwareBuffer成功")
+                    lastDiagnostic = "OK(M1)"
                     return copy
                 }
+                diagLog("⚠️ M1 copy返回null")
+            } else {
+                diagLog("⚠️ M1 wrapHardwareBuffer返回null, fmt=$format")
             }
-            diagLog("⚠️ wrapHardwareBuffer返回null, fmt=$format")
         } catch (e: UnsupportedOperationException) {
-            diagLog("⚠️ wrapHardwareBuffer不支持: fmt=$format msg=${e.message}")
+            diagLog("⚠️ M1 wrap不支持: fmt=$format msg=${e.message}")
         } catch (e: Exception) {
-            diagLog("⚠️ wrapHardwareBuffer异常: ${e.javaClass.simpleName}: ${e.message}")
+            diagLog("⚠️ M1 wrap异常: ${e.javaClass.simpleName}: ${e.message}")
         }
 
         // 方案2: HardwareBuffer.lock() + Unsafe
         try {
             val bitmap = hardwareBufferLockRead(hardwareBuffer, width, height, format)
             if (bitmap != null) {
-                diagLog("✅ HardwareBuffer.lock成功")
-                lastDiagnostic = "OK(lock)"
+                diagLog("✅ M2 HardwareBuffer.lock成功")
+                lastDiagnostic = "OK(M2)"
                 return bitmap
             }
         } catch (e: Throwable) {
-            diagLog("⚠️ HardwareBuffer.lock失败: ${e.javaClass.simpleName}: ${e.message}")
+            diagLog("⚠️ M2 HardwareBuffer.lock失败: ${e.javaClass.simpleName}: ${e.message}")
         }
 
         // 方案3: Image.newInstance反射
         try {
             val bitmap = imageReflectionRead(hardwareBuffer, width, height, format)
             if (bitmap != null) {
-                diagLog("✅ Image反射成功")
-                lastDiagnostic = "OK(Image)"
+                diagLog("✅ M3 Image反射成功")
+                lastDiagnostic = "OK(M3)"
                 return bitmap
             }
         } catch (e: Throwable) {
-            diagLog("⚠️ Image反射失败: ${e.javaClass.simpleName}: ${e.message}")
+            diagLog("⚠️ M3 Image反射失败: ${e.javaClass.simpleName}: ${e.message}")
         }
 
         // 方案4: SurfaceControl.screenshot()
         try {
             val bitmap = surfaceControlScreenshot(width, height)
             if (bitmap != null) {
-                diagLog("✅ SurfaceControl截图成功")
-                lastDiagnostic = "OK(SC)"
+                diagLog("✅ M4 SurfaceControl成功")
+                lastDiagnostic = "OK(M4)"
                 return bitmap
             }
         } catch (e: Throwable) {
-            diagLog("⚠️ SurfaceControl失败: ${e.javaClass.simpleName}: ${e.message}")
+            diagLog("⚠️ M4 SurfaceControl失败: ${e.javaClass.simpleName}: ${e.message}")
         }
 
         lastDiagnostic = "ALL_FAIL fmt=$format"
@@ -159,9 +324,9 @@ object ScreenshotHelper {
                 val lockMethod = HardwareBuffer::class.java.getDeclaredMethod("lock", Long::class.javaPrimitiveType)
                 lockMethod.isAccessible = true
                 lockResult = lockMethod.invoke(hardwareBuffer, CPU_READ_OFTEN)
-                diagLog("lock(API34)返回: ${lockResult?.javaClass?.name}")
+                diagLog("M2 lock(API34)返回: ${lockResult?.javaClass?.name}")
             } catch (e: Exception) {
-                diagLog("lock(API34)失败: ${e.javaClass.simpleName}: ${e.message}")
+                diagLog("M2 lock(API34)失败: ${e.javaClass.simpleName}: ${e.message}")
             }
         }
 
@@ -175,12 +340,12 @@ object ScreenshotHelper {
                         args[0] = CPU_READ_OFTEN.toInt()
                         for (i in 1 until paramTypes.size) { args[i] = null }
                         nativePtr = method.invoke(hardwareBuffer, *args) as Long
-                        diagLog("lock(旧API)成功: nativePtr=$nativePtr")
+                        diagLog("M2 lock(旧API)成功: nativePtr=$nativePtr")
                         break
                     }
                 }
             } catch (e: Exception) {
-                diagLog("lock(旧API)失败: ${e.javaClass.simpleName}: ${e.message}")
+                diagLog("M2 lock(旧API)失败: ${e.javaClass.simpleName}: ${e.message}")
             }
         }
 
@@ -198,12 +363,12 @@ object ScreenshotHelper {
                     }
                 }
             } catch (e: Exception) {
-                diagLog("LockResult解析失败: ${e.javaClass.simpleName}: ${e.message}")
+                diagLog("M2 LockResult解析失败: ${e.javaClass.simpleName}: ${e.message}")
             }
         }
 
         if (nativePtr == 0L) {
-            diagLog("HardwareBuffer.lock()未获取到native指针")
+            diagLog("M2 HardwareBuffer.lock()未获取到native指针")
             return null
         }
 
@@ -212,7 +377,7 @@ object ScreenshotHelper {
             try { for (m in HardwareBuffer::class.java.declaredMethods) { if (m.name == "unlock" && m.parameterCount == 0) { m.isAccessible = true; m.invoke(hardwareBuffer); break } } } catch (_: Exception) {}
             return bitmap
         } catch (e: Exception) {
-            diagLog("Unsafe读像素失败: ${e.javaClass.simpleName}: ${e.message}")
+            diagLog("M2 Unsafe读像素失败: ${e.javaClass.simpleName}: ${e.message}")
             try { for (m in HardwareBuffer::class.java.declaredMethods) { if (m.name == "unlock" && m.parameterCount == 0) { m.isAccessible = true; m.invoke(hardwareBuffer); break } } } catch (_: Exception) {}
             return null
         }
@@ -231,7 +396,7 @@ object ScreenshotHelper {
             val b1 = getByte.invoke(unsafe, nativePtr + 1) as Byte
             val b2 = getByte.invoke(unsafe, nativePtr + 2) as Byte
             val b3 = getByte.invoke(unsafe, nativePtr + 3) as Byte
-            diagLog("首像素: [${b0.toInt() and 0xFF}, ${b1.toInt() and 0xFF}, ${b2.toInt() and 0xFF}, ${b3.toInt() and 0xFF}]")
+            diagLog("M2 首像素: [${b0.toInt() and 0xFF}, ${b1.toInt() and 0xFF}, ${b2.toInt() and 0xFF}, ${b3.toInt() and 0xFF}]")
         }
 
         for (y in 0 until height) {
@@ -269,27 +434,27 @@ object ScreenshotHelper {
             m.isAccessible = true
             m.invoke(null, hardwareBuffer, format, 0L)
         } catch (e: Exception) {
-            diagLog("Image.newInstance(3参)失败: ${e.javaClass.simpleName}: ${e.message}")
+            diagLog("M3 Image.newInstance(3参)失败: ${e.javaClass.simpleName}: ${e.message}")
             try {
                 val m = imageClass.getDeclaredMethod("newInstance", HardwareBuffer::class.java, Int::class.javaPrimitiveType)
                 m.isAccessible = true
                 m.invoke(null, hardwareBuffer, 1)
             } catch (e2: Exception) {
-                diagLog("Image.newInstance(2参)也失败: ${e2.javaClass.simpleName}: ${e2.message}")
+                diagLog("M3 Image.newInstance(2参)也失败: ${e2.javaClass.simpleName}: ${e2.message}")
                 null
             }
         } ?: return null
 
         try {
             val planes = imageClass.getMethod("getPlanes").invoke(image) as? Array<Any>
-            if (planes == null || planes.isEmpty()) { diagLog("Image.getPlanes返回空"); return null }
+            if (planes == null || planes.isEmpty()) { diagLog("M3 Image.getPlanes返回空"); return null }
             val plane = planes[0]
             val planeClass = plane.javaClass
             val buffer = planeClass.getMethod("getBuffer").invoke(plane) as? java.nio.ByteBuffer
-            if (buffer == null) { diagLog("Plane.getBuffer返回null"); return null }
+            if (buffer == null) { diagLog("M3 Plane.getBuffer返回null"); return null }
             val rowStride = planeClass.getMethod("getRowStride").invoke(plane) as Int
             val pixelStride = planeClass.getMethod("getPixelStride").invoke(plane) as Int
-            diagLog("Image planes: rowStride=$rowStride pixelStride=$pixelStride bufCap=${buffer.capacity()}")
+            diagLog("M3 planes: rowStride=$rowStride pixelStride=$pixelStride bufCap=${buffer.capacity()}")
 
             val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
             buffer.rewind()
@@ -327,7 +492,7 @@ object ScreenshotHelper {
             }
             return bitmap
         } catch (e: Exception) {
-            diagLog("Image读取失败: ${e.javaClass.simpleName}: ${e.message}")
+            diagLog("M3 Image读取失败: ${e.javaClass.simpleName}: ${e.message}")
             return null
         }
     }
@@ -359,126 +524,14 @@ object ScreenshotHelper {
                         else -> continue
                     }
                     val result = method.invoke(null, *args)
-                    if (result is Bitmap) { diagLog("SC(${paramTypes.size}参)成功"); return result }
-                    diagLog("SC(${paramTypes.size}参)返回: ${result?.javaClass?.simpleName}")
+                    if (result is Bitmap) { diagLog("M4 SC(${paramTypes.size}参)成功"); return result }
+                    diagLog("M4 SC(${paramTypes.size}参)返回: ${result?.javaClass?.simpleName}")
                 } catch (_: Exception) { continue }
             }
         } catch (e: Exception) {
-            diagLog("SurfaceControl完全失败: ${e.message}")
+            diagLog("M4 SurfaceControl完全失败: ${e.message}")
         }
         return null
-    }
-
-    /**
-     * 截取屏幕
-     * v3.08核心: onSuccess回调只保存HardwareBuffer引用
-     * 所有转换在latch.await之后做，不在Proxy里做
-     */
-    fun captureScreen(service: AccessibilityService): Bitmap? {
-        if (Build.VERSION.SDK_INT < 30) {
-            lastError = "需Android 11+"
-            return null
-        }
-
-        lastError = null
-        diagFilePath = "${service.getExternalFilesDir(null)?.absolutePath ?: service.filesDir.absolutePath}/screenshot_diag.txt"
-        diagLog("captureScreen v$VERSION 开始")
-
-        var resultBitmap: Bitmap? = null
-        val latch = CountDownLatch(1)
-        var captureError: String? = null
-        var capturedHardwareBuffer: HardwareBuffer? = null
-        var capturedScreenshot: Any? = null
-        var callbackError: String? = null
-
-        try {
-            val displayId = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                service.display?.displayId ?: 0
-            } else { 0 }
-
-            val callbackClass = Class.forName("android.accessibilityservice.AccessibilityService\$TakeScreenshotCallback")
-            val screenshotClass = Class.forName("android.accessibilityservice.AccessibilityService\$Screenshot")
-
-            val executor = Executor { runnable -> Handler(Looper.getMainLooper()).post(runnable) }
-
-            val callback = java.lang.reflect.Proxy.newProxyInstance(
-                callbackClass.classLoader,
-                arrayOf(callbackClass)
-            ) { _, method, args ->
-                when (method.name) {
-                    "onSuccess" -> {
-                        try {
-                            val screenshot = args[0]
-                            val hardwareBuffer = screenshotClass.getMethod("getHardwareBuffer").invoke(screenshot) as? HardwareBuffer
-                            if (hardwareBuffer != null) {
-                                capturedHardwareBuffer = hardwareBuffer
-                                capturedScreenshot = screenshot
-                            } else {
-                                callbackError = "hwBuf=null"
-                            }
-                        } catch (e: Throwable) {
-                            callbackError = "cb:${e.javaClass.simpleName}"
-                        }
-                        latch.countDown()
-                        null
-                    }
-                    "onFailure" -> {
-                        callbackError = "err=${args[0] as? Int ?: -1}"
-                        latch.countDown()
-                        null
-                    }
-                    else -> null
-                }
-            }
-
-            AccessibilityService::class.java.getMethod(
-                "takeScreenshot",
-                Int::class.javaPrimitiveType,
-                java.util.concurrent.Executor::class.java,
-                callbackClass
-            ).invoke(service, displayId, executor, callback)
-
-            if (!latch.await(5, TimeUnit.SECONDS)) {
-                captureError = "超时"
-            }
-
-            // 回调外做转换
-            if (captureError == null && callbackError == null && capturedHardwareBuffer != null) {
-                try {
-                    resultBitmap = hardwareBufferToBitmap(capturedHardwareBuffer!!)
-                } catch (e: Throwable) {
-                    diagLog("hardwareBufferToBitmap逃逸异常: ${e.javaClass.simpleName}: ${e.message}")
-                    lastDiagnostic = "EXC ${e.javaClass.simpleName}"
-                }
-
-                if (resultBitmap == null) {
-                    val fmt = capturedHardwareBuffer!!.format
-                    val w = capturedHardwareBuffer!!.width
-                    val h = capturedHardwareBuffer!!.height
-                    captureError = "v$VERSION f$fmt ${w}x$h ${lastDiagnostic ?: "fail"}"
-                }
-
-                try { capturedHardwareBuffer!!.close() } catch (e: Throwable) { diagLog("hwBuf.close异常: ${e.javaClass.simpleName}") }
-            } else if (callbackError != null) {
-                captureError = callbackError
-            }
-
-            if (capturedScreenshot != null) {
-                try { screenshotClass.getMethod("close").invoke(capturedScreenshot) } catch (e: Throwable) { diagLog("screenshot.close异常: ${e.javaClass.simpleName}") }
-            }
-
-        } catch (e: SecurityException) {
-            captureError = "请重开无障碍"
-        } catch (e: Exception) {
-            captureError = "${e.javaClass.simpleName}"
-        }
-
-        if (resultBitmap == null) {
-            lastError = captureError ?: "未知失败"
-            diagLog("截图失败: lastError=$lastError diag=$lastDiagnostic")
-        }
-
-        return resultBitmap
     }
 
     fun checkPixelColor(bitmap: Bitmap, x: Int, y: Int, targetColor: Int, tolerance: Int = 30): Boolean {
