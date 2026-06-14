@@ -208,9 +208,11 @@ object ScreenshotHelper {
                 captureError = "S5 hwBuf=null"
             }
 
-            // 关闭 ScreenshotResult
-            try { capturedScreenshotResult?.close() } catch (e: Throwable) {
-                diagLog("S6 screenshot.close异常: ${e.javaClass.simpleName}")
+            // 关闭 ScreenshotResult (API 34+ 才有 close)
+            if (Build.VERSION.SDK_INT >= 34) {
+                try { capturedScreenshotResult?.close() } catch (e: Throwable) {
+                    diagLog("S6 screenshot.close异常: ${e.javaClass.simpleName}")
+                }
             }
 
         } catch (e: SecurityException) {
