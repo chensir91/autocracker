@@ -176,13 +176,13 @@ class DailyRoutine(
         return false
     }
     
-    /** 在区域内搜索颜色（轮询截图直到找到） */
+    /** 在区域内搜索颜色（轮询截图直到找到），返回找到的绝对坐标或null */
     private fun waitForColorInArea(
         area: DeviceConfig.PctRect,
         rule: DeviceConfig.ColorRule,
         timeoutMs: Long = 30000,
         intervalMs: Long = 500
-    ): Boolean {
+    ): Pair<Int, Int>? {
         val startTime = System.currentTimeMillis()
         var screenshotAttempts = 0
         var screenshotFails = 0
@@ -207,12 +207,12 @@ class DailyRoutine(
             if (found != null) {
                 log("✅ ${rule.name} 区域搜索成功 (${area.leftPct}-${area.rightPct}%, ${area.topPct}-${area.bottomPct}%) → (${found.first}, ${found.second})")
                 onAction?.invoke(TestAction.Recognize(rule.name))
-                return true
+                return found
             }
             delay(intervalMs)
         }
         log("❌ ${rule.name} 区域搜索超时 ${timeoutMs}ms (截图${screenshotAttempts}次, 失败${screenshotFails}次)")
-        return false
+        return null
     }
     
     /** 日志 */
@@ -232,7 +232,8 @@ class DailyRoutine(
     private fun handleWaitStart(): DailyState {
         log("=== 等待START界面 ===")
         onAction?.invoke(TestAction.StateChanged(DailyState.WAIT_START))
-        if (!waitForColorInArea(DeviceConfig.START_SEARCH_AREA, DeviceConfig.COLOR_START_YELLOW, timeoutMs = 60000)) {
+        val startFound = waitForColorInArea(DeviceConfig.START_SEARCH_AREA, DeviceConfig.COLOR_START_YELLOW, timeoutMs = 60000)
+        if (startFound == null) {
             onError?.invoke("等待START超时，请确认游戏已启动")
             onAction?.invoke(TestAction.Error("等待START超时，请确认游戏已启动"))
             return DailyState.DONE
@@ -245,60 +246,26 @@ class DailyRoutine(
     
     /**
      * ② 等待开始唤醒灰按钮
-     * - 主方案: 区域搜索灰按钮 (类似START搜索)
-     * - 备用: 固定点识色 (宽松条件: gray OR lightBg)
-     * - 兜底: 超时后直接点击
+     * - 主方案: 区域搜索灰按钮，用搜索到的坐标点击
+     * - 兜底: 超时后点击固定位置
      * - 下一状态: CLEAR_POPUPS
      */
     private fun handleWaitWake(): DailyState {
         log("=== 等待开始唤醒 ===")
         onAction?.invoke(TestAction.StateChanged(DailyState.WAIT_WAKE))
         
-        // 主方案: 区域搜索灰按钮
-        if (waitForColorInArea(DeviceConfig.WAKE_SEARCH_AREA, DeviceConfig.COLOR_WAKE_GRAY, timeoutMs = 20000)) {
-            log("✅ 开始唤醒灰按钮区域搜索成功")
+        // 主方案: 区域搜索灰按钮，用搜索到的坐标点击
+        val wakeFound = waitForColorInArea(DeviceConfig.WAKE_SEARCH_AREA, DeviceConfig.COLOR_WAKE_GRAY, timeoutMs = 25000)
+        if (wakeFound != null) {
+            log("✅ 开始唤醒灰按钮搜索成功，点击搜索坐标 (${wakeFound.first}, ${wakeFound.second})")
             delay(300)
-            click(DeviceConfig.WAKE_CLICK)
+            clickAbs(wakeFound.first, wakeFound.second)
             delay(2000)
             return DailyState.CLEAR_POPUPS
         }
         
-        // 备用: 固定点识色 + 诊断日志
-        log("⚠️ 区域搜索超时，尝试固定点识色...")
-        val startTime = System.currentTimeMillis()
-        while (System.currentTimeMillis() - startTime < 8000L && isRunning) {
-            checkPaused()
-            val bmp = screenshot() ?: continue
-            
-            val isGray = checkColor(bmp, DeviceConfig.WAKE_CHECK, DeviceConfig.COLOR_WAKE_GRAY)
-            val isLightBg = checkColor(bmp, DeviceConfig.WAKE_ASSIST, DeviceConfig.COLOR_WAKE_BG_LIGHT)
-            
-            // 诊断: 记录实际颜色值
-            val (cx, cy) = Pct2Abs(DeviceConfig.WAKE_CHECK)
-            val (ax, ay) = Pct2Abs(DeviceConfig.WAKE_ASSIST)
-            if (cx in 0 until bmp.width && cy in 0 until bmp.height) {
-                val cp = bmp.getPixel(cx, cy)
-                log("🔍 WAKE_CHECK(${cx},${cy}): R=${android.graphics.Color.red(cp)} G=${android.graphics.Color.green(cp)} B=${android.graphics.Color.blue(cp)} gray=$isGray")
-            }
-            if (ax in 0 until bmp.width && ay in 0 until bmp.height) {
-                val ap = bmp.getPixel(ax, ay)
-                log("🔍 WAKE_ASSIST(${ax},${ay}): R=${android.graphics.Color.red(ap)} G=${android.graphics.Color.green(ap)} B=${android.graphics.Color.blue(ap)} light=$isLightBg")
-            }
-            
-            bmp.recycle()
-            
-            if (isGray || isLightBg) {
-                log("✅ 固定点识色命中 (gray=$isGray, lightBg=$isLightBg)")
-                delay(300)
-                click(DeviceConfig.WAKE_CLICK)
-                delay(2000)
-                return DailyState.CLEAR_POPUPS
-            }
-            delay(500)
-        }
-        
-        // 兜底: 直接点击（按钮可能在那里但识色不准）
-        log("⚠️ 开始唤醒超时，兜底点击")
+        // 兜底: 直接点击固定位置
+        log("⚠️ 开始唤醒搜索超时，兜底点击固定位置")
         click(DeviceConfig.WAKE_CLICK)
         delay(2000)
         return DailyState.CLEAR_POPUPS
@@ -561,7 +528,8 @@ class DailyRoutine(
         
         // ① 等待START黄字（区域搜索，兼容不同设备Y偏移）
         log("=== [测试] 等待START界面 ===")
-        if (!waitForColorInArea(DeviceConfig.START_SEARCH_AREA, DeviceConfig.COLOR_START_YELLOW, timeoutMs = 60000)) {
+        val startCoord = waitForColorInArea(DeviceConfig.START_SEARCH_AREA, DeviceConfig.COLOR_START_YELLOW, timeoutMs = 60000)
+        if (startCoord == null) {
             onError?.invoke("等待START超时，请确认游戏已启动")
             onAction?.invoke(TestAction.Error("等待START超时，请确认游戏已启动"))
             onAction?.invoke(TestAction.ModuleDone(TestModule.ENTER_GAME))
@@ -571,74 +539,20 @@ class DailyRoutine(
         click(DeviceConfig.START_CLICK)
         delay(2000)
         
-        // ② 等待开始唤醒灰按钮（主方案: 区域搜索，备用: 固定点，兜底: 直接点击）
+        // ② 等待开始唤醒灰按钮（区域搜索，用搜索坐标点击）
         currentState = DailyState.WAIT_WAKE
         onAction?.invoke(TestAction.StateChanged(currentState))
         log("=== [测试] 等待开始唤醒 ===")
         
-        var wakeFound = false
-        // 主方案: 区域搜索
-        if (waitForColorInArea(DeviceConfig.WAKE_SEARCH_AREA, DeviceConfig.COLOR_WAKE_GRAY, timeoutMs = 20000)) {
-            log("✅ 开始唤醒区域搜索成功")
-            wakeFound = true
+        val wakeCoord = waitForColorInArea(DeviceConfig.WAKE_SEARCH_AREA, DeviceConfig.COLOR_WAKE_GRAY, timeoutMs = 25000)
+        if (wakeCoord != null) {
+            log("✅ 开始唤醒搜索成功，点击搜索坐标 (${wakeCoord.first}, ${wakeCoord.second})")
+            delay(300)
+            clickAbs(wakeCoord.first, wakeCoord.second)
         } else {
-            // 备用: 固定点识色 (宽松条件)
-            log("⚠️ 区域搜索超时，尝试固定点识色...")
-            val startTime = System.currentTimeMillis()
-            while (System.currentTimeMillis() - startTime < 8000L && isRunning) {
-                checkPaused()
-                val bmp = screenshot() ?: continue
-                
-                val isGray = checkColor(bmp, DeviceConfig.WAKE_CHECK, DeviceConfig.COLOR_WAKE_GRAY)
-                val isLightBg = checkColor(bmp, DeviceConfig.WAKE_ASSIST, DeviceConfig.COLOR_WAKE_BG_LIGHT)
-                
-                // 诊断日志
-                val (cx, cy) = Pct2Abs(DeviceConfig.WAKE_CHECK)
-                if (cx in 0 until bmp.width && cy in 0 until bmp.height) {
-                    val cp = bmp.getPixel(cx, cy)
-                    log("🔍 WAKE_CHECK(${cx},${cy}): R=${android.graphics.Color.red(cp)} G=${android.graphics.Color.green(cp)} B=${android.graphics.Color.blue(cp)} gray=$isGray")
-                }
-                
-                bmp.recycle()
-                
-                if (isGray || isLightBg) {
-                    log("✅ 固定点识色命中 (gray=$isGray, lightBg=$isLightBg)")
-                    wakeFound = true
-                    break
-                }
-                delay(500)
-            }
+            log("⚠️ 开始唤醒搜索超时，兜底点击固定位置")
+            click(DeviceConfig.WAKE_CLICK)
         }
-        
-        if (!wakeFound) {
-            log("⚠️ 开始唤醒超时，兜底点击")
-        }
-        delay(300)
-        click(DeviceConfig.WAKE_CLICK)
-        delay(2000)
-        
-        // ③ 清活动弹窗
-        currentState = DailyState.CLEAR_POPUPS
-        onAction?.invoke(TestAction.StateChanged(currentState))
-        log("=== [测试] 清理活动弹窗 ===")
-        
-        delay(3000)
-        for (i in 1..8) {
-            if (!isRunning) {
-                onAction?.invoke(TestAction.ModuleDone(TestModule.ENTER_GAME))
-                return
-            }
-            checkPaused()
-            val bmp = screenshot() ?: continue
-            bmp.recycle()
-            click(DeviceConfig.POPUP_CLOSE)
-            delay(800)
-        }
-        
-        // ④ 主界面
-        currentState = DailyState.MAIN_MENU
-        onAction?.invoke(TestAction.StateChanged(currentState))
-        log("=== [测试] 主界面确认 ===")
         delay(2000)
         
         log("✅ 进游戏模块完成")

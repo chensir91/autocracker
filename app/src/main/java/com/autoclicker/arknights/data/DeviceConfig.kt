@@ -35,8 +35,8 @@ object DeviceConfig {
     
     // ============ 进游戏 ============
     
-    /** START黄字搜索区域 (40-60%, 86-97%) — 菱形Y位置跨设备偏移大，须搜索 */
-    val START_SEARCH_AREA = PctRect(40f, 86f, 60f, 97f)
+    /** START黄字搜索区域 (42-58%, 88-96%) — 菱形区域，收紧避免误识别加载条/背景文字 */
+    val START_SEARCH_AREA = PctRect(42f, 88f, 58f, 96f)
     
     /** START点击位置 (50%, 91%) — 菱形中心偏上 */
     val START_CLICK = PctCoord(50f, 91f)
@@ -44,14 +44,8 @@ object DeviceConfig {
     /** 开始唤醒灰按钮搜索区域 (40-62%, 63-74%) — 按钮位置跨设备偏移，须搜索 */
     val WAKE_SEARCH_AREA = PctRect(40f, 63f, 62f, 74f)
     
-    /** 开始唤醒灰按钮识色点 (51%, 67%) — 按钮中心偏上 */
-    val WAKE_CHECK = PctCoord(51f, 67f)
-    
-    /** 开始唤醒辅助验证点 (51%, 63%) — 浅灰背景R>220 */
-    val WAKE_ASSIST = PctCoord(51f, 63f)
-    
-    /** 开始唤醒点击位置 (51%, 67%) — 按钮中心 */
-    val WAKE_CLICK = PctCoord(51f, 67f)
+    /** 开始唤醒点击位置 (51%, 70%) — 灰按钮中心 */
+    val WAKE_CLICK = PctCoord(51f, 70f)
     
     // ============ 活动弹窗 ============
     
@@ -136,8 +130,8 @@ object DeviceConfig {
         fun check(r: Int, g: Int, b: Int): Boolean = checkR(r) && checkG(g) && checkB(b)
     }
     
-    /** START黄字: R>220, G>180, B<80 */
-    val COLOR_START_YELLOW = ColorRule("START黄字", { it > 220 }, { it > 180 }, { it < 80 })
+    /** START黄字: R>220, G>180, B<80 且 R<250, G<230 — 排除纯黄加载条(R≈255,G≈255,B≈0) */
+    val COLOR_START_YELLOW = ColorRule("START黄字", { it in 220..249 }, { it in 180..229 }, { it < 80 })
     
     /** 开始唤醒灰按钮: R在45-135范围（≈85±50，加宽容差） */
     val COLOR_WAKE_GRAY = ColorRule("开始唤醒灰", { it in 45..135 }, { it in 45..135 }, { it in 45..135 })

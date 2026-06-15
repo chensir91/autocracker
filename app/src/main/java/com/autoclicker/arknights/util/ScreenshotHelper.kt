@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit
  */
 object ScreenshotHelper {
     private const val TAG = "ScreenshotHelper"
-    const val VERSION = "3.10"
+    const val VERSION = "3.11"
 
     val isSupported: Boolean
         get() = Build.VERSION.SDK_INT >= 30
