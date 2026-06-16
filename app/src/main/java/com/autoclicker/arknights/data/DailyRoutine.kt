@@ -627,7 +627,7 @@ class DailyRoutine(
         } else {
             log("⚠️ 未找到开始行动蓝按钮，尝试固定位置点击")
             click(DeviceConfig.BATTLE_START_BLUE_AREA.let { 
-                PctCoord((it.leftPct + it.rightPct) / 2, (it.topPct + it.bottomPct) / 2)
+                DeviceConfig.PctCoord((it.leftPct + it.rightPct) / 2, (it.topPct + it.bottomPct) / 2)
             })
             delay(2000)
         }
@@ -645,7 +645,7 @@ class DailyRoutine(
         } else {
             log("⚠️ 未找到开始行动橙按钮，尝试固定位置点击")
             click(DeviceConfig.BATTLE_START_ORANGE_AREA.let {
-                PctCoord((it.leftPct + it.rightPct) / 2, (it.topPct + it.bottomPct) / 2)
+                DeviceConfig.PctCoord((it.leftPct + it.rightPct) / 2, (it.topPct + it.bottomPct) / 2)
             })
             delay(2000)
         }
@@ -1110,7 +1110,7 @@ class DailyRoutine(
             delay(2000)
         } else {
             click(DeviceConfig.BATTLE_START_BLUE_AREA.let {
-                PctCoord((it.leftPct + it.rightPct) / 2, (it.topPct + it.bottomPct) / 2)
+                DeviceConfig.PctCoord((it.leftPct + it.rightPct) / 2, (it.topPct + it.bottomPct) / 2)
             })
             delay(2000)
         }
@@ -1126,7 +1126,7 @@ class DailyRoutine(
             delay(2000)
         } else {
             click(DeviceConfig.BATTLE_START_ORANGE_AREA.let {
-                PctCoord((it.leftPct + it.rightPct) / 2, (it.topPct + it.bottomPct) / 2)
+                DeviceConfig.PctCoord((it.leftPct + it.rightPct) / 2, (it.topPct + it.bottomPct) / 2)
             })
             delay(2000)
         }
