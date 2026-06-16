@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit
  */
 object ScreenshotHelper {
     private const val TAG = "ScreenshotHelper"
-    const val VERSION = "3.11"
+    const val VERSION = "3.12"
 
     val isSupported: Boolean
         get() = Build.VERSION.SDK_INT >= 30
@@ -561,6 +561,49 @@ object ScreenshotHelper {
             }
         }
         return null
+    }
+
+    /**
+     * 在区域内搜索满足颜色规则的像素，返回匹配区域的质心坐标
+     * 解决 searchPixel 从左上角扫描导致点击偏移的问题：
+     * 先快速找到第一个匹配像素，再在局部区域精细扫描计算质心
+     */
+    fun searchPixelCentroid(
+        bitmap: Bitmap,
+        searchLeft: Int, searchTop: Int, searchRight: Int, searchBottom: Int,
+        checkR: (Int) -> Boolean, checkG: (Int) -> Boolean, checkB: (Int) -> Boolean,
+        stepX: Int = 4, stepY: Int = 4,
+        localRadius: Int = 80
+    ): Pair<Int, Int>? {
+        // Step 1: 快速搜索第一个匹配像素
+        val firstMatch = searchPixel(bitmap, searchLeft, searchTop, searchRight, searchBottom, checkR, checkG, checkB, stepX, stepY)
+            ?: return null
+
+        // Step 2: 在第一个匹配点周围精细扫描，计算质心
+        val localLeft = maxOf(0, firstMatch.first - localRadius)
+        val localTop = maxOf(0, firstMatch.second - localRadius)
+        val localRight = minOf(bitmap.width, firstMatch.first + localRadius)
+        val localBottom = minOf(bitmap.height, firstMatch.second + localRadius)
+
+        var sumX = 0L
+        var sumY = 0L
+        var count = 0
+
+        for (y in localTop until localBottom step 2) {
+            for (x in localLeft until localRight step 2) {
+                if (checkPixelRange(bitmap, x, y, checkR, checkG, checkB)) {
+                    sumX += x
+                    sumY += y
+                    count++
+                }
+            }
+        }
+
+        return if (count > 0) {
+            (sumX / count).toInt() to (sumY / count).toInt()
+        } else {
+            firstMatch
+        }
     }
 
     fun waitForPixel(service: AccessibilityService, x: Int, y: Int, targetColor: Int, timeoutMs: Long = 30000, intervalMs: Long = 500, tolerance: Int = 30): Boolean {
