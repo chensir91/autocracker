@@ -11,8 +11,8 @@ android {
         applicationId "com.autoclicker.arknights"
         minSdk 24
         targetSdk 34
-        versionCode 6
-        versionName "3.12"
+        versionCode 7
+        versionName "3.13"
     }
 
     signingConfigs {

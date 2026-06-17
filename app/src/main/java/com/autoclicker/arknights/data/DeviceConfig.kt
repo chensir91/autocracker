@@ -3,12 +3,14 @@ package com.autoclicker.arknights.data
 /**
  * 一键肝舟 v2 - 设备配置
  * 所有坐标用百分比（相对屏幕宽高），运行时按实际分辨率转为绝对坐标
- * 基于10份录制数据交叉验证（K30 2400×1080 + iqoo z9t 2800×1260）
- * 
+ * 基于30+张截图交叉验证（K30 2400×1080 + iqoo z9t 2800×1260）
+ *
  * 坐标稳定性评级:
  * ✅ 跨设备差异<1% — 可直接用固定百分比
- * ⚠️ 差异1-5% — 可用但需留余量
- * ❌ 差异>5% — 必须搜索区域或OCR
+ * ⚠️ 差异1-5% 或仅基于单设备截图 — 可用但需留余量
+ * ❌ 差异>5% 或主题相关 — 必须搜索区域或OCR
+ *
+ * v3.13: 全面重写导航流程，新增线索交流/1-7循环/任务双页
  */
 object DeviceConfig {
     
@@ -33,89 +35,106 @@ object DeviceConfig {
         }
     }
     
-    // ============ 主界面底部导航 ============
-    // ⚠️ 位置因主题略有差异，需OCR验证；以下为大致位置
+    // ============ 顶部导航栏（各子界面通用） ============
+    // 从公招截图验证：返回箭头 | 首页(小房子) | 编队 | 干员 | 档案 | 终端 | 基建 | 公开招募 | 干员寻访 | 采购中心
     
-    /** 基建 tab (底部导航最左) */
-    val NAV_BASE = PctCoord(18f, 94f)
+    /** 返回箭头 (左上角) — 点它回上一层 */
+    val NAV_BACK = PctCoord(3f, 4f)
     
-    /** 终端 tab (底部导航右起第二) */
-    val NAV_TERMINAL = PctCoord(70f, 94f)
+    /** 小房子/首页 (导航栏第二个) — 点它出导航栏或回主界面 */
+    val NAV_HOME = PctCoord(10f, 4f)
     
-    /** 任务 tab (底部导航最右) */
-    val NAV_MISSION = PctCoord(90f, 94f)
+    /** 导航栏-公开招募 (中偏右) ⚠️位置因屏幕宽度可能偏移 */
+    val NAV_BAR_RECRUIT = PctCoord(68f, 4f)
+    
+    /** 导航栏-终端 ⚠️ */
+    val NAV_BAR_TERMINAL = PctCoord(50f, 4f)
+    
+    /** 导航栏-基建 ⚠️ */
+    val NAV_BAR_BASE = PctCoord(58f, 4f)
+    
+    /** 导航栏-采购中心(含信用商店) ⚠️ */
+    val NAV_BAR_SHOP = PctCoord(88f, 4f)
+    
+    // ============ 主界面模块（右侧排列，主题相关） ============
+    // ❌ 主界面布局因主题变化大，以下坐标仅为估算，需OCR最终替代
+    
+    /** 主界面-基建模块 (右下区域) ❌需OCR */
+    val MAIN_BASE = PctCoord(83f, 85f)
+    
+    /** 主界面-任务模块 (中下方) ❌需OCR */
+    val MAIN_MISSION = PctCoord(83f, 78f)
+    
+    /** 主界面-采购中心/信用商店 (中偏右) ❌需OCR */
+    val MAIN_SHOP = PctCoord(83f, 55f)
+    
+    /** 主界面-终端 (右上区域) ❌需OCR */
+    val MAIN_TERMINAL = PctCoord(83f, 20f)
     
     // ============ 进游戏 ============
     
-    /** START黄字搜索区域 (42-58%, 88-96%) — 菱形区域，收紧避免误识别加载条/背景文字 */
+    /** START黄字搜索区域 (42-58%, 88-96%) — 菱形区域 */
     val START_SEARCH_AREA = PctRect(42f, 88f, 58f, 96f)
     
-    /** START点击位置 (50%, 91%) — 菱形中心偏上 */
+    /** START点击位置 (50%, 91%) */
     val START_CLICK = PctCoord(50f, 91f)
     
-    /** 开始唤醒灰按钮搜索区域 (40-62%, 63-74%) — 按钮位置跨设备偏移，须搜索 */
+    /** 开始唤醒灰按钮搜索区域 (40-62%, 63-74%) */
     val WAKE_SEARCH_AREA = PctRect(40f, 63f, 62f, 74f)
     
-    /** 开始唤醒点击位置 (51%, 70%) — 灰按钮中心 */
+    /** 开始唤醒点击位置 (51%, 70%) */
     val WAKE_CLICK = PctCoord(51f, 70f)
     
-    // ============ 活动弹窗 ============
+    // ============ 清弹窗 ============
     
-    /** 关闭弹窗×临时位置 (96%, 4%) — ⚠️Y%变化大，需OCR或搜索 */
-    val POPUP_CLOSE = PctCoord(96f, 4f)
+    /** 弹窗X按钮搜索区域 (中间偏右上) — 4张弹窗截图交叉验证 */
+    val POPUP_X_AREA = PctRect(60f, 2f, 98f, 15f)
     
-    /** 弹窗确认按钮（底部中央，如"确认"） */
+    /** 弹窗底部确认区域（某些弹窗用底部按钮关闭） */
     val POPUP_CONFIRM = PctCoord(50f, 85f)
     
     // ============ 基建 ============
     
-    /** 基建收取识色点 (15%, 94%) ✅跨设备极稳 */
-    val BASE_COLLECT_CHECK = PctCoord(15f, 94f)
+    /** 蓝底铃铛搜索区域 (右上角 NOTIFICATION) ✅截图验证 */
+    val BASE_BELL_AREA = PctRect(82f, 1f, 96f, 8f)
     
-    /** 基建收取点击位置（5连点区域，左下角） */
-    val BASE_COLLECT_CLICK = PctCoord(15f, 94f)
+    /** 底部功能栏"可收获"按钮 (第二项) ⚠️需OCR确认 */
+    val BASE_HARVEST = PctCoord(20f, 95f)
     
-    /** 基建内返回按钮 (6%, 5%) — ⚠️≠好友→主界面返回(18%,5%)！ */
+    /** 会客室入口 (基建网格中，控制中枢右侧) ⚠️截图估算 */
+    val BASE_MEETING_ROOM = PctCoord(76f, 27f)
+    
+    /** 基建内返回按钮 (6%, 5%) */
     val BACK_BASE = PctCoord(6f, 5f)
     
-    /** 好友→主界面返回按钮 (18%, 5%) — ⚠️≠基建内返回(6%,5%)！ */
-    val BACK_TO_MAIN = PctCoord(18f, 5f)
+    // ============ 会客室/线索交流 ============
     
-    /** 基建内好友/访问入口 (右上区域) ⚠️需验证 */
-    val BASE_VISIT_ENTRY = PctCoord(90f, 6f)
+    /** 线索传递图标 (左上) ⚠️ */
+    val MEETING_CLUE_TRANSFER = PctCoord(10f, 5f)
     
-    /** 基建内信用交易所入口 ⚠️需验证 */
-    val BASE_CREDIT_ENTRY = PctCoord(50f, 8f)
+    /** 好友按钮 (左下区域) ⚠️ */
+    val MEETING_FRIEND = PctCoord(10f, 90f)
     
     // ============ 好友访问 ============
     
-    /** 访问下位搜索区域 (85-97%, 88-97%) — X%波动大，须搜索 */
+    /** 访问下位搜索区域 (85-97%, 88-97%) ✅跨设备稳定 */
     val VISIT_NEXT_AREA = PctRect(85f, 88f, 97f, 97f)
-    
-    /** 确认访问好友 (68.1%, 24.0%) ✅极其稳定 */
-    val VISIT_CONFIRM = PctCoord(68.1f, 24.0f)
-    
-    /** 进房间 (81.2%, 30.5%) ✅极其稳定 */
-    val ROOM_ENTER = PctCoord(81.2f, 30.5f)
     
     // ============ 公招 ============
     
-    /** 公招入口 (70.0%, 39.6%) 较稳定 ✅ */
-    val RECRUIT_ENTRY = PctCoord(70.0f, 39.6f)
+    /** 公招入口 — 从导航栏直接点 */
+    // (使用 NAV_BAR_RECRUIT)
     
-    /** 公招slot搜索区域 — 搜索蓝色按钮 */
-    val RECRUIT_SLOT_AREA = PctRect(20f, 60f, 95f, 95f)
+    /** 公招slot搜索区域 */
+    val RECRUIT_SLOT_AREA = PctRect(20f, 40f, 95f, 95f)
     
-    /** 公招9h时间按钮 (86%, 42%) ⚠️需验证 */
+    /** 公招9h时间按钮 ⚠️需验证 */
     val RECRUIT_9H_BTN = PctCoord(86f, 42f)
     
-    /** 公招确认按钮 (71.4%, 79.1%) ⚠️与信用确认购买坐标重叠！需状态机区分 */
+    /** 公招确认按钮 ⚠️与信用确认购买坐标重叠！需状态机区分 */
     val RECRUIT_CONFIRM = PctCoord(71.4f, 79.1f)
     
-    /** 公招右上×关闭 (97%, 4%) */
-    val RECRUIT_CLOSE = PctCoord(97f, 4f)
-    
-    /** 公招SKIP动画按钮 (50%, 90%) ⚠️需验证 */
+    /** 公招SKIP动画按钮 ⚠️需验证 */
     val RECRUIT_SKIP = PctCoord(50f, 90f)
     
     // ============ 信用交易所 ============
@@ -123,54 +142,68 @@ object DeviceConfig {
     /** 收取信用搜索区域 (右上角) */
     val CREDIT_COLLECT_AREA = PctRect(85f, 1f, 95f, 8f)
     
-    /** 信用确认购买 (70.4%, 80.1%) ✅✅✅跨设备极稳 ⚠️与公招9h确认重叠 */
+    /** 信用确认购买 ✅✅✅跨设备极稳 ⚠️与公招9h确认重叠 */
     val CREDIT_BUY_CONFIRM = PctCoord(70.4f, 80.1f)
-    
-    /** 信用翻页搜索区域 — ⚠️跨设备差异大！K30(86%,66%) vs iqoo(81%,55%) ΔY=11% */
-    val CREDIT_PAGE_AREA = PctRect(78f, 50f, 90f, 72f)
     
     /** 信用商品位置（上排4个） */
     val CREDIT_ITEMS = listOf(
-        PctCoord(22f, 30f),  // 第1排第1个
-        PctCoord(42f, 30f),  // 第1排第2个
-        PctCoord(62f, 30f),  // 第1排第3个
-        PctCoord(82f, 30f)   // 第1排第4个
+        PctCoord(22f, 30f),
+        PctCoord(42f, 30f),
+        PctCoord(62f, 30f),
+        PctCoord(82f, 30f)
     )
     
     /** 信用商品位置（下排2个） */
     val CREDIT_ITEMS_ROW2 = listOf(
-        PctCoord(22f, 55f),  // 第2排第1个
-        PctCoord(42f, 55f)   // 第2排第2个
+        PctCoord(22f, 55f),
+        PctCoord(42f, 55f)
     )
     
-    // ============ 战斗 ============
+    /** 购买确认搜索区域 */
+    val CREDIT_BUY_AREA = PctRect(60f, 70f, 85f, 90f)
     
-    /** 终端→关卡选择区域（1-7大致位置） ⚠️需验证 */
-    val BATTLE_1_7_POS = PctCoord(50f, 60f)
+    // ============ 终端→1-7 ============
     
-    /** 开始行动蓝按钮搜索区域（关卡选择界面） */
-    val BATTLE_START_BLUE_AREA = PctRect(75f, 85f, 95f, 95f)
+    /** 终端底部导航-主题曲tab (左下第二个) ✅截图验证 */
+    val TERM_THEME_TAB = PctCoord(22f, 92f)
     
-    /** 开始行动橙按钮搜索区域（编队界面） */
-    val BATTLE_START_ORANGE_AREA = PctRect(75f, 85f, 95f, 95f)
+    /** 终端底部导航-终端tab (最左) ✅ */
+    val TERM_TERMINAL_TAB = PctCoord(7f, 92f)
     
-    /** 行动结束白字搜索区域 (5-25%, 8-15%) */
-    val BATTLE_END_SEARCH = PctRect(5f, 8f, 25f, 15f)
+    /** 黑暗时代下卡片 (三张卡片的中间/偏右) ⚠️截图估算 */
+    val DARK_AGE_BELOW = PctCoord(72f, 43f)
     
-    /** 行动结束后点击继续（屏幕中央） */
+    /** 前往章节按钮 (右下角) ⚠️截图估算 */
+    val GO_TO_CHAPTER = PctCoord(91f, 85f)
+    
+    /** 1-7关卡节点 (关卡地图中部) ⚠️截图估算 */
+    val STAGE_1_7 = PctCoord(65f, 31f)
+    
+    /** 开始行动蓝按钮搜索区域（关卡选择界面右下） ✅截图验证 */
+    val BATTLE_START_BLUE_AREA = PctRect(83f, 82f, 98f, 96f)
+    
+    /** 开始行动橙按钮搜索区域（编队界面右下） ✅截图验证 */
+    val BATTLE_START_ORANGE_AREA = PctRect(60f, 70f, 98f, 96f)
+    
+    /** 行动结束白字搜索区域 (左上方) ✅截图验证 */
+    val BATTLE_END_AREA = PctRect(4f, 8f, 25f, 20f)
+    
+    /** 战斗结束后点击继续（屏幕中央） */
     val BATTLE_CONTINUE = PctCoord(50f, 50f)
     
     // ============ 任务 ============
     
-    /** "收集全部"蓝按钮搜索区域 */
-    val MISSION_COLLECT_AREA = PctRect(70f, 82f, 95f, 95f)
+    /** 任务模块(主界面中下方) ❌需OCR */
+    val MISSION_MODULE = PctCoord(83f, 78f)
+    
+    /** "收集全部"蓝按钮搜索区域 ✅截图验证 */
+    val COLLECT_ALL_AREA = PctRect(72f, 5f, 92f, 18f)
+    
+    /** 周常任务tab ⚠️截图估算 */
+    val WEEKLY_TAB = PctCoord(30f, 5f)
     
     // ============ 识色规则 ============
     
-    /**
-     * RGB范围判断规则
-     * 每个通道传入验证函数，如 { it > 220 } 表示 R>220
-     */
     data class ColorRule(
         val name: String,
         val checkR: (Int) -> Boolean,
@@ -182,13 +215,21 @@ object DeviceConfig {
     
     // ---- 进游戏 ----
     
-    /** START黄字: R 220-249, G 180-229, B<80 — 排除纯黄加载条(R≈255,G≈255) */
+    /** START黄字: R 220-249, G 180-229, B<80 */
     val COLOR_START_YELLOW = ColorRule("START黄字", { it in 220..249 }, { it in 180..229 }, { it < 80 })
     
-    /** 开始唤醒灰按钮: R在45-135范围 */
+    /** 开始唤醒灰按钮: R/G/B均在45-135 */
     val COLOR_WAKE_GRAY = ColorRule("开始唤醒灰", { it in 45..135 }, { it in 45..135 }, { it in 45..135 })
     
+    // ---- 清弹窗 ----
+    
+    /** 弹窗X灰色按钮: R/G/B均在160-240，且差异小(灰色) */
+    val COLOR_POPUP_X = ColorRule("弹窗X灰", { it in 160..240 }, { it in 160..240 }, { it in 160..240 })
+    
     // ---- 基建 ----
+    
+    /** 蓝底铃铛: B>200, R<100, G>130 ✅截图验证 */
+    val COLOR_BASE_BELL = ColorRule("蓝底铃铛", { it < 100 }, { it > 130 }, { it > 200 })
     
     /** 基建/收信用 橙色收取: R>180, G<150 */
     val COLOR_COLLECT_ORANGE = ColorRule("橙色收取", { it > 180 }, { it < 150 }, { true })
@@ -206,7 +247,7 @@ object DeviceConfig {
     /** 公招空槽蓝+按钮: B>200, R<20, G>140 */
     val COLOR_RECRUIT_EMPTY = ColorRule("公招空槽蓝", { it < 20 }, { it > 140 }, { it > 200 })
     
-    /** 公招聘用候选人蓝按钮: B>200, R<20, G>140 (颜色与空槽几乎一样！) */
+    /** 公招聘用候选人蓝按钮: B>200, R<20, G>140 */
     val COLOR_RECRUIT_FULL = ColorRule("公招已完成蓝", { it < 20 }, { it > 140 }, { it > 200 })
     
     /** 公招确认蓝按钮: B>200, R<100 */
@@ -214,7 +255,7 @@ object DeviceConfig {
     
     // ---- 信用商店 ----
     
-    /** 收取信用橙色按钮: R>180, G<130, B<50 (右上角) */
+    /** 收取信用橙色按钮: R>180, G<130, B<50 */
     val COLOR_CREDIT_COLLECT = ColorRule("收取信用橙", { it > 180 }, { it < 130 }, { it < 50 })
     
     /** 购买物品橙色按钮: R>200, G 80-140, B<50 */
@@ -222,17 +263,17 @@ object DeviceConfig {
     
     // ---- 战斗 ----
     
-    /** 开始行动蓝按钮(关卡选择): R<40, G>100, B>150 */
+    /** 开始行动蓝按钮(关卡选择): R<40, G>100, B>150 ✅截图验证 */
     val COLOR_BATTLE_START_BLUE = ColorRule("开始行动蓝", { it < 40 }, { it > 100 }, { it > 150 })
     
-    /** 开始行动橙按钮(编队): R>200, G>180, B<80 (黄橙色！) */
+    /** 开始行动橙按钮(编队): R>200, G>180, B<80 ✅截图验证 */
     val COLOR_BATTLE_START_ORANGE = ColorRule("开始行动橙", { it > 200 }, { it > 180 }, { it < 80 })
     
-    /** 行动结束白字: R>250, G>250, B>250 */
+    /** 行动结束白字: R>250, G>250, B>250 ✅截图验证 */
     val COLOR_BATTLE_END_WHITE = ColorRule("行动结束白", { it > 250 }, { it > 250 }, { it > 250 })
     
     // ---- 任务 ----
     
-    /** 任务收集全部蓝按钮: B>200, R<100 */
+    /** 任务收集全部蓝按钮: B>200, R<100 ✅截图验证 */
     val COLOR_MISSION_BLUE = ColorRule("任务收集蓝", { it < 100 }, { true }, { it > 200 })
 }
