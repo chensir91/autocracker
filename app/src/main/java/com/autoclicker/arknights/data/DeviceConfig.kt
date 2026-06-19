@@ -87,8 +87,8 @@ object DeviceConfig {
     
     // ============ 清弹窗 ============
     
-    /** 弹窗X按钮搜索区域 (中间偏右上) — 4张弹窗截图交叉验证 */
-    val POPUP_X_AREA = PctRect(60f, 2f, 98f, 15f)
+    /** 弹窗X按钮搜索区域 (中间偏右上) — 避开顶部状态栏(y>8%)，缩窄到弹窗右上角 */
+    val POPUP_X_AREA = PctRect(70f, 8f, 96f, 25f)
     
     /** 弹窗底部确认区域（某些弹窗用底部按钮关闭） */
     val POPUP_CONFIRM = PctCoord(50f, 85f)
