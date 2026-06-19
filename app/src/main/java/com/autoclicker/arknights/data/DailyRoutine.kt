@@ -19,9 +19,14 @@ import com.autoclicker.arknights.util.ScreenshotHelper
  */
 class DailyRoutine(
     private val service: AccessibilityService,
-    private val screenWidth: Int,
-    private val screenHeight: Int
+    screenWidth: Int,
+    screenHeight: Int
 ) {
+    // ⚠️ displayMetrics 可能返回竖屏分辨率，但游戏横屏运行
+    // 首次截图时用bitmap实际尺寸覆盖，确保百分比坐标准确
+    @Volatile private var screenWidth: Int = screenWidth
+    @Volatile private var screenHeight: Int = screenHeight
+    @Volatile private var screenDimVerified: Boolean = false
     companion object {
         private const val TAG = "DailyRoutine"
         private const val MAX_FRIEND_VISITS = 12
@@ -109,6 +114,22 @@ class DailyRoutine(
         val bmp = ScreenshotHelper.captureScreen(service)
         if (bmp == null) {
             Log.w(TAG, "截图返回null，可能缺少截图权限")
+            return null
+        }
+        // 首次截图：用bitmap实际尺寸校准screenWidth/screenHeight
+        // 解决displayMetrics返回竖屏分辨率但游戏横屏运行的bug
+        if (!screenDimVerified) {
+            val bmpW = bmp.width
+            val bmpH = bmp.height
+            if (bmpW != screenWidth || bmpH != screenHeight) {
+                Log.w(TAG, "⚠️ 屏幕尺寸校准: displayMetrics(${screenWidth}×${screenHeight}) → 截图实际(${bmpW}×${bmpH})")
+                log("📐 屏幕尺寸校准: ${screenWidth}×${screenHeight} → ${bmpW}×${bmpH}")
+                screenWidth = bmpW
+                screenHeight = bmpH
+            } else {
+                Log.d(TAG, "✅ 屏幕尺寸一致: ${screenWidth}×${screenHeight}")
+            }
+            screenDimVerified = true
         }
         return bmp
     }
