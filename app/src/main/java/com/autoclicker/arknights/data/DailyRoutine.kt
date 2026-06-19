@@ -301,7 +301,11 @@ class DailyRoutine(
     }
     
     /**
-     * ③ 清弹窗 — 在中间偏右上区域搜索X按钮，点到没有为止
+     * ③ 清弹窗 — 先识别今日配给→再搜X按钮→确认弹窗背景才点击
+     * 新策略(v3.16):
+     * 1. 搜索今日配给黄色徽章 → 点确认按钮关闭
+     * 2. 搜索X按钮(灰色) + 验证弹窗深色背景存在(防止误点主界面UI)
+     * 3. 都没找到 → 弹窗已清完
      * → 下一状态: BASE_COLLECT
      */
     private fun handleClearPopups(): DailyState {
@@ -314,29 +318,93 @@ class DailyRoutine(
             if (!isRunning) return DailyState.DONE
             checkPaused()
             
-            // 在中间偏右上区域搜索X按钮（灰色圆形关闭按钮）
-            val xFound = checkColorInArea(DeviceConfig.POPUP_X_AREA, DeviceConfig.COLOR_POPUP_X)
-            if (xFound != null) {
-                log("✅ 找到弹窗X → 点击 (${xFound.first}, ${xFound.second})")
-                clickAbs(xFound.first, xFound.second)
-                delay(800)
+            // === 第一步：识别今日配给弹窗（黄色徽章） ===
+            val yellowFound = checkColorInArea(DeviceConfig.DAILY_RATION_BADGE_AREA, DeviceConfig.COLOR_DAILY_RATION_YELLOW)
+            if (yellowFound != null) {
+                log("✅ 识别到今日配给弹窗 → 点确认按钮")
+                click(DeviceConfig.DAILY_RATION_CONFIRM)
+                delay(1500)
                 continue
             }
             
-            // 没找到X，尝试底部确认按钮（某些弹窗用确认关闭）
-            click(DeviceConfig.POPUP_CONFIRM)
-            delay(500)
-            
-            // 再次检查X
-            val xFound2 = checkColorInArea(DeviceConfig.POPUP_X_AREA, DeviceConfig.COLOR_POPUP_X)
-            if (xFound2 == null) {
-                log("✅ 弹窗已清除完毕")
-                break
+            // === 第二步：搜索X按钮 + 弹窗背景验证 ===
+            val xFound = searchPopupX()
+            if (xFound != null) {
+                log("✅ 找到弹窗X → 点击 (${xFound.first}, ${xFound.second})")
+                clickAbs(xFound.first, xFound.second)
+                delay(1000)
+                continue
             }
+            
+            // === 没找到任何弹窗 → 清完 ===
+            log("✅ 弹窗已清除完毕")
+            break
         }
         
         // 进入基建
         return DailyState.BASE_COLLECT
+    }
+    
+    /**
+     * 搜索弹窗X按钮 — 带弹窗背景验证
+     * 先找灰色像素候选，再验证弹窗深色背景存在，防止误点主界面UI
+     */
+    private fun searchPopupX(): Pair<Int, Int>? {
+        val bmp = screenshot() ?: return null
+        
+        // 在X按钮搜索区域找灰色像素
+        val absRect = Pct2Abs(DeviceConfig.POPUP_X_AREA)
+        val firstMatch = ScreenshotHelper.searchPixel(
+            bmp, absRect.left, absRect.top, absRect.right, absRect.bottom,
+            DeviceConfig.COLOR_POPUP_X.checkR, DeviceConfig.COLOR_POPUP_X.checkG, DeviceConfig.COLOR_POPUP_X.checkB
+        )
+        
+        if (firstMatch == null) {
+            bmp.recycle()
+            return null
+        }
+        
+        // 找到灰色像素 → 计算质心
+        val centroid = ScreenshotHelper.searchPixelCentroid(
+            bmp, absRect.left, absRect.top, absRect.right, absRect.bottom,
+            DeviceConfig.COLOR_POPUP_X.checkR, DeviceConfig.COLOR_POPUP_X.checkG, DeviceConfig.COLOR_POPUP_X.checkB
+        )
+        val candidate = centroid ?: firstMatch
+        
+        // === 关键验证：检查弹窗深色背景是否存在 ===
+        // 弹窗覆盖时，屏幕中央区域应该是深色的(弹窗背景)，而不是正常游戏界面
+        val darkCheckRect = Pct2Abs(DeviceConfig.POPUP_DARK_CHECK_AREA)
+        var darkCount = 0
+        var totalChecked = 0
+        // 采样检查：每隔20像素检查一个点
+        for (y in darkCheckRect.top until darkCheckRect.bottom step 20) {
+            for (x in darkCheckRect.left until darkCheckRect.right step 20) {
+                if (x < bmp.width && y < bmp.height) {
+                    val pixel = bmp.getPixel(x, y)
+                    val r = android.graphics.Color.red(pixel)
+                    val g = android.graphics.Color.green(pixel)
+                    val b = android.graphics.Color.blue(pixel)
+                    val brightness = (r + g + b) / 3
+                    if (brightness < 60) {
+                        darkCount++
+                    }
+                    totalChecked++
+                }
+            }
+        }
+        bmp.recycle()
+        
+        val darkRatio = if (totalChecked > 0) darkCount.toFloat() / totalChecked else 0f
+        log("  X候选(${candidate.first},${candidate.second}) 深色背景比例: ${"%.0f".format(darkRatio * 100)}% ($darkCount/$totalChecked)")
+        
+        // 弹窗覆盖时中央区域至少30%是深色的；主界面中央区域有游戏画面，深色比例很低
+        if (darkRatio >= 0.3f) {
+            log("  ✅ 弹窗背景验证通过")
+            return candidate
+        } else {
+            log("  ❌ 弹窗背景验证失败（可能是主界面），跳过")
+            return null
+        }
     }
     
     /**
@@ -913,20 +981,27 @@ class DailyRoutine(
         for (i in 1..MAX_POPUP_CLOSES) {
             if (!isRunning) break
             checkPaused()
-            val xFound = checkColorInArea(DeviceConfig.POPUP_X_AREA, DeviceConfig.COLOR_POPUP_X)
+            
+            // 1. 今日配给弹窗
+            val yellowFound = checkColorInArea(DeviceConfig.DAILY_RATION_BADGE_AREA, DeviceConfig.COLOR_DAILY_RATION_YELLOW)
+            if (yellowFound != null) {
+                log("识别到今日配给 → 点确认")
+                click(DeviceConfig.DAILY_RATION_CONFIRM)
+                delay(1500)
+                continue
+            }
+            
+            // 2. X按钮 + 背景验证
+            val xFound = searchPopupX()
             if (xFound != null) {
                 log("找到弹窗X → 点击")
                 clickAbs(xFound.first, xFound.second)
-                delay(800)
-            } else {
-                click(DeviceConfig.POPUP_CONFIRM)
-                delay(500)
-                val xFound2 = checkColorInArea(DeviceConfig.POPUP_X_AREA, DeviceConfig.COLOR_POPUP_X)
-                if (xFound2 == null) {
-                    log("✅ 弹窗已清除")
-                    break
-                }
+                delay(1000)
+                continue
             }
+            
+            log("✅ 弹窗已清除")
+            break
         }
         
         log("✅ 关弹窗模块完成")

@@ -79,19 +79,25 @@ object DeviceConfig {
     /** START点击位置 (50%, 91%) */
     val START_CLICK = PctCoord(50f, 91f)
     
-    /** 开始唤醒灰按钮搜索区域 (40-62%, 63-74%) */
-    val WAKE_SEARCH_AREA = PctRect(40f, 63f, 62f, 74f)
+    /** 开始唤醒灰按钮搜索区域 — 扩大范围覆盖按钮实际位置 */
+    val WAKE_SEARCH_AREA = PctRect(35f, 30f, 65f, 75f)
     
-    /** 开始唤醒点击位置 (51%, 70%) */
-    val WAKE_CLICK = PctCoord(51f, 70f)
+    /** 开始唤醒点击位置 (50%, 56%) ⚠️不同登录方式位置有差异，优先搜索 */
+    val WAKE_CLICK = PctCoord(50f, 56f)
     
     // ============ 清弹窗 ============
     
-    /** 弹窗X按钮搜索区域 (中间偏右上) — 避开顶部状态栏(y>8%)，缩窄到弹窗右上角 */
-    val POPUP_X_AREA = PctRect(70f, 8f, 96f, 25f)
+    /** 今日配给弹窗-黄色徽章搜索区域 (屏幕中央) ✅截图验证 */
+    val DAILY_RATION_BADGE_AREA = PctRect(35f, 35f, 65f, 65f)
     
-    /** 弹窗底部确认区域（某些弹窗用底部按钮关闭） */
-    val POPUP_CONFIRM = PctCoord(50f, 85f)
+    /** 今日配给弹窗-确认按钮(底部中心黑色圆形) ✅截图验证 */
+    val DAILY_RATION_CONFIRM = PctCoord(50f, 82f)
+    
+    /** 弹窗X按钮搜索区域 — 扩大范围覆盖不同弹窗位置，但避开顶部6%状态栏 */
+    val POPUP_X_AREA = PctRect(55f, 6f, 97f, 30f)
+    
+    /** 弹窗深色背景检测区域（用于验证X按钮确实在弹窗上） */
+    val POPUP_DARK_CHECK_AREA = PctRect(20f, 30f, 80f, 70f)
     
     // ============ 基建 ============
     
@@ -223,7 +229,10 @@ object DeviceConfig {
     
     // ---- 清弹窗 ----
     
-    /** 弹窗X灰色按钮: R/G/B均在160-240，且差异小(灰色) */
+    /** 今日配给黄色徽章(寻访凭证): R>200, G>150, B<80 ✅截图验证 */
+    val COLOR_DAILY_RATION_YELLOW = ColorRule("今日配给黄", { it > 200 }, { it > 150 }, { it < 80 })
+    
+    /** 弹窗X灰色按钮: R/G/B均在160-240，且差异小(灰色) — 需配合弹窗背景检测 */
     val COLOR_POPUP_X = ColorRule("弹窗X灰", { it in 160..240 }, { it in 160..240 }, { it in 160..240 })
     
     // ---- 基建 ----
