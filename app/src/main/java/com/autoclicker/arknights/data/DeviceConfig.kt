@@ -79,11 +79,11 @@ object DeviceConfig {
     /** START点击位置 (50%, 91%) */
     val START_CLICK = PctCoord(50f, 91f)
     
-    /** 开始唤醒灰按钮搜索区域 — 扩大范围覆盖按钮实际位置 */
-    val WAKE_SEARCH_AREA = PctRect(35f, 30f, 65f, 75f)
+    /** 开始唤醒灰按钮搜索区域 — 屏幕中偏左区域，覆盖不同设备按钮位置 */
+    val WAKE_SEARCH_AREA = PctRect(30f, 25f, 70f, 75f)
     
-    /** 开始唤醒点击位置 (50%, 56%) ⚠️不同登录方式位置有差异，优先搜索 */
-    val WAKE_CLICK = PctCoord(50f, 56f)
+    /** 开始唤醒点击位置 (45%, 38%) — 兜底位置，优先搜索 */
+    val WAKE_CLICK = PctCoord(45f, 38f)
     
     // ============ 清弹窗 ============
     
@@ -224,8 +224,8 @@ object DeviceConfig {
     /** START黄字: R 220-249, G 180-229, B<80 */
     val COLOR_START_YELLOW = ColorRule("START黄字", { it in 220..249 }, { it in 180..229 }, { it < 80 })
     
-    /** 开始唤醒灰按钮: R/G/B均在45-135 */
-    val COLOR_WAKE_GRAY = ColorRule("开始唤醒灰", { it in 45..135 }, { it in 45..135 }, { it in 45..135 })
+    /** 开始唤醒灰按钮: R:82-115, G:78-108, B:78-108 — 收紧范围避免匹配背景渐变和UI线条 */
+    val COLOR_WAKE_GRAY = ColorRule("开始唤醒灰", { it in 82..115 }, { it in 78..108 }, { it in 78..108 })
     
     // ---- 清弹窗 ----
     

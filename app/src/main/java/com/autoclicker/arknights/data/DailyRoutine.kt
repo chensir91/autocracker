@@ -2,7 +2,11 @@ package com.autoclicker.arknights.data
 
 import android.accessibilityservice.AccessibilityService
 import android.graphics.Bitmap
+import android.graphics.Color
+import android.graphics.Point
+import android.os.Build
 import android.util.Log
+import android.view.Display
 import com.autoclicker.arknights.util.ClickUtils
 import com.autoclicker.arknights.util.ScreenshotHelper
 
@@ -23,10 +27,12 @@ class DailyRoutine(
     screenHeight: Int
 ) {
     // ⚠️ displayMetrics 可能返回竖屏分辨率，但游戏横屏运行
-    // 首次截图时用bitmap实际尺寸覆盖，确保百分比坐标准确
+    // 首次截图时用bitmap实际尺寸+display rotation综合校准，确保百分比坐标准确
     @Volatile private var screenWidth: Int = screenWidth
     @Volatile private var screenHeight: Int = screenHeight
     @Volatile private var screenDimVerified: Boolean = false
+    // 截图bitmap是否需要坐标变换（bitmap竖屏但屏幕横屏时）
+    @Volatile private var bitmapNeedsTransform: Boolean = false
     companion object {
         private const val TAG = "DailyRoutine"
         private const val MAX_FRIEND_VISITS = 12
@@ -116,22 +122,86 @@ class DailyRoutine(
             Log.w(TAG, "截图返回null，可能缺少截图权限")
             return null
         }
-        // 首次截图：用bitmap实际尺寸校准screenWidth/screenHeight
-        // 解决displayMetrics返回竖屏分辨率但游戏横屏运行的bug
+        // 首次截图：综合校准屏幕尺寸
         if (!screenDimVerified) {
             val bmpW = bmp.width
             val bmpH = bmp.height
-            if (bmpW != screenWidth || bmpH != screenHeight) {
-                Log.w(TAG, "⚠️ 屏幕尺寸校准: displayMetrics(${screenWidth}×${screenHeight}) → 截图实际(${bmpW}×${bmpH})")
-                log("📐 屏幕尺寸校准: ${screenWidth}×${screenHeight} → ${bmpW}×${bmpH}")
-                screenWidth = bmpW
-                screenHeight = bmpH
-            } else {
-                Log.d(TAG, "✅ 屏幕尺寸一致: ${screenWidth}×${screenHeight}")
+            
+            // 方法1: 用display.getRealSize获取真实屏幕尺寸（当前方向）
+            var realW = 0
+            var realH = 0
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    val display = service.display
+                    if (display != null) {
+                        val point = Point()
+                        display.getRealSize(point)
+                        realW = point.x
+                        realH = point.y
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "getRealSize失败: ${e.message}")
             }
+            
+            // 确定最终尺寸: 优先用getRealSize，否则用bitmap尺寸，确保宽>高(横屏游戏)
+            val finalW: Int
+            val finalH: Int
+            if (realW > 0 && realH > 0) {
+                // getRealSize成功，直接用（已经是当前方向的真实尺寸）
+                finalW = realW
+                finalH = realH
+                Log.d(TAG, "📐 使用getRealSize: ${realW}×${realH}")
+            } else {
+                // fallback: 用bitmap尺寸，但确保宽>高（游戏横屏）
+                finalW = maxOf(bmpW, bmpH)
+                finalH = minOf(bmpW, bmpH)
+                Log.d(TAG, "📐 使用bitmap尺寸(确保横屏): ${bmpW}×${bmpH} → ${finalW}×${finalH}")
+            }
+            
+            // 检查bitmap是否需要坐标变换（bitmap竖屏但屏幕横屏）
+            bitmapNeedsTransform = (bmpW < bmpH) && (finalW > finalH)
+            
+            if (finalW != screenWidth || finalH != screenHeight) {
+                Log.w(TAG, "⚠️ 屏幕尺寸校准: displayMetrics(${screenWidth}×${screenHeight}) → 实际(${finalW}×${finalH})")
+                log("📐 屏幕尺寸校准: ${screenWidth}×${screenHeight} → ${finalW}×${finalH}")
+            }
+            screenWidth = finalW
+            screenHeight = finalH
+            
+            if (bitmapNeedsTransform) {
+                Log.d(TAG, "⚠️ bitmap需要坐标变换(竖屏截图→横屏点击)")
+                log("📐 检测到截图竖屏，点击坐标将自动变换")
+            }
+            
+            Log.d(TAG, "✅ 最终屏幕尺寸: ${screenWidth}×${screenHeight}, bitmap: ${bmpW}×${bmpH}, 需变换: $bitmapNeedsTransform")
             screenDimVerified = true
         }
         return bmp
+    }
+    
+    /** 将bitmap坐标转换为屏幕坐标（处理竖屏截图→横屏点击的情况） */
+    private fun bmpToScreen(bmpX: Int, bmpY: Int, bmp: Bitmap): Pair<Int, Int> {
+        if (!bitmapNeedsTransform) return bmpX to bmpY
+        // bitmap竖屏(1080x2400) → 屏幕横屏(2400x1080)
+        // 典型旋转90°(ROTATION_90): screen_x = bmp_y, screen_y = bmp_width - bmp_x
+        val screenX = bmpY
+        val screenY = bmp.width - bmpX
+        return screenX to screenY
+    }
+    
+    /** 将屏幕百分比搜索区域转换为bitmap搜索区域 */
+    private fun screenToBmpRect(rect: DeviceConfig.PctRect, bmp: Bitmap): android.graphics.Rect {
+        if (!bitmapNeedsTransform) return Pct2Abs(rect)
+        // 屏幕横屏(2400x1080) → bitmap竖屏(1080x2400)
+        // 逆变换: bmp_x = bmp_width - screen_y, bmp_y = screen_x
+        val screenRect = Pct2Abs(rect)
+        // 屏幕区域 (left,top,right,bottom) → bitmap区域
+        val bmpLeft = bmp.width - screenRect.bottom
+        val bmpTop = screenRect.left
+        val bmpRight = bmp.width - screenRect.top
+        val bmpBottom = screenRect.right
+        return android.graphics.Rect(bmpLeft, bmpTop, bmpRight, bmpBottom)
     }
     
     private fun click(coord: DeviceConfig.PctCoord) {
@@ -165,22 +235,100 @@ class DailyRoutine(
         return ScreenshotHelper.checkPixelRange(bmp, x, y, rule.checkR, rule.checkG, rule.checkB)
     }
     
-    /** 区域搜索满足颜色规则的像素（返回第一个匹配） */
+    /** 区域搜索满足颜色规则的像素（返回第一个匹配，自动处理坐标变换） */
     private fun searchColor(bmp: Bitmap, rect: DeviceConfig.PctRect, rule: DeviceConfig.ColorRule): Pair<Int, Int>? {
-        val absRect = Pct2Abs(rect)
-        return ScreenshotHelper.searchPixel(
+        val absRect = screenToBmpRect(rect, bmp)
+        val found = ScreenshotHelper.searchPixel(
             bmp, absRect.left, absRect.top, absRect.right, absRect.bottom,
             rule.checkR, rule.checkG, rule.checkB
         )
+        return found?.let { bmpToScreen(it.first, it.second, bmp) }
     }
     
-    /** 区域搜索满足颜色规则的像素质心 */
+    /** 区域搜索满足颜色规则的像素质心（自动处理坐标变换） */
     private fun searchColorCentroid(bmp: Bitmap, rect: DeviceConfig.PctRect, rule: DeviceConfig.ColorRule): Pair<Int, Int>? {
-        val absRect = Pct2Abs(rect)
-        return ScreenshotHelper.searchPixelCentroid(
+        val absRect = screenToBmpRect(rect, bmp)
+        val found = ScreenshotHelper.searchPixelCentroid(
             bmp, absRect.left, absRect.top, absRect.right, absRect.bottom,
             rule.checkR, rule.checkG, rule.checkB
         )
+        return found?.let { bmpToScreen(it.first, it.second, bmp) }
+    }
+    
+    /**
+     * 区域搜索色块（密集匹配），而非散点
+     * 解决：背景渐变中散点灰色像素导致质心偏移的问题
+     * 原理：按钮/色块区域匹配像素密度高(>30%)，背景散点密度低(<10%)
+     * 算法：先搜第一个匹配→检查局部密度→密度足够才返回质心
+     */
+    private fun searchColorDense(
+        bmp: Bitmap,
+        rect: DeviceConfig.PctRect,
+        rule: DeviceConfig.ColorRule,
+        minDensity: Float = 0.15f,
+        localRadius: Int = 50,
+        step: Int = 3
+    ): Pair<Int, Int>? {
+        val absRect = screenToBmpRect(rect, bmp)
+        
+        // 搜索所有匹配点，按密度筛选
+        var bestCenter: Pair<Int, Int>? = null
+        var bestDensity = 0f
+        var bestCount = 0
+        var searchAttempts = 0
+        
+        for (y in absRect.top until absRect.bottom step (step * 4)) {
+            for (x in absRect.left until absRect.right step (step * 4)) {
+                if (x < 0 || x >= bmp.width || y < 0 || y >= bmp.height) continue
+                searchAttempts++
+                val pixel = bmp.getPixel(x, y)
+                val r = Color.red(pixel)
+                val g = Color.green(pixel)
+                val b = Color.blue(pixel)
+                if (!rule.check(r, g, b)) continue
+                
+                // 找到匹配像素，检查局部密度
+                val cl = maxOf(0, x - localRadius)
+                val ct = maxOf(0, y - localRadius)
+                val cr = minOf(bmp.width, x + localRadius)
+                val cb = minOf(bmp.height, y + localRadius)
+                
+                var matchCount = 0
+                var totalCount = 0
+                var sumX = 0L
+                var sumY = 0L
+                
+                for (ly in ct until cb step step) {
+                    for (lx in cl until cr step step) {
+                        val lp = bmp.getPixel(lx, ly)
+                        val lr = Color.red(lp)
+                        val lg = Color.green(lp)
+                        val lb = Color.blue(lp)
+                        if (rule.check(lr, lg, lb)) {
+                            matchCount++
+                            sumX += lx
+                            sumY += ly
+                        }
+                        totalCount++
+                    }
+                }
+                
+                val density = if (totalCount > 0) matchCount.toFloat() / totalCount else 0f
+                
+                if (density >= minDensity && matchCount > bestCount) {
+                    bestDensity = density
+                    bestCount = matchCount
+                    val cx = (sumX / matchCount).toInt()
+                    val cy = (sumY / matchCount).toInt()
+                    bestCenter = bmpToScreen(cx, cy, bmp)
+                }
+            }
+        }
+        
+        if (bestCenter != null) {
+            Log.d(TAG, "✅ searchColorDense: 密度${"%.0f".format(bestDensity * 100)}%, ${bestCount}px, 屏幕坐标(${bestCenter.first},${bestCenter.second})")
+        }
+        return bestCenter
     }
     
     /** 在区域内搜索颜色（轮询截图直到找到），返回质心坐标或null */
@@ -223,10 +371,18 @@ class DailyRoutine(
         return null
     }
     
-    /** 单次截图检查区域颜色，返回质心坐标或null */
+    /** 单次截图检查区域颜色，返回质心坐标或null（自动处理坐标变换） */
     private fun checkColorInArea(area: DeviceConfig.PctRect, rule: DeviceConfig.ColorRule): Pair<Int, Int>? {
         val bmp = screenshot() ?: return null
         val result = searchColorCentroid(bmp, area, rule)
+        bmp.recycle()
+        return result
+    }
+    
+    /** 单次截图检查区域颜色密度（用于按钮搜索），返回密集色块质心或null */
+    private fun checkColorDense(area: DeviceConfig.PctRect, rule: DeviceConfig.ColorRule, minDensity: Float = 0.15f): Pair<Int, Int>? {
+        val bmp = screenshot() ?: return null
+        val result = searchColorDense(bmp, area, rule, minDensity)
         bmp.recycle()
         return result
     }
@@ -253,6 +409,29 @@ class DailyRoutine(
         }
         log("❌ ${rule.name} 等待超时 ${timeoutMs}ms")
         return false
+    }
+    
+    /** 等待密集色块出现（轮询截图），用于按钮搜索，避免散点误匹配 */
+    private fun waitForDenseColor(
+        area: DeviceConfig.PctRect,
+        rule: DeviceConfig.ColorRule,
+        minDensity: Float = 0.15f,
+        timeoutMs: Long = 30000,
+        intervalMs: Long = 500
+    ): Pair<Int, Int>? {
+        val startTime = System.currentTimeMillis()
+        while (System.currentTimeMillis() - startTime < timeoutMs && isRunning) {
+            checkPaused()
+            val found = checkColorDense(area, rule, minDensity)
+            if (found != null) {
+                log("✅ ${rule.name} 密集色块搜索成功 → (${found.first}, ${found.second})")
+                onAction?.invoke(TestAction.Recognize(rule.name))
+                return found
+            }
+            delay(intervalMs)
+        }
+        log("❌ ${rule.name} 密集色块搜索超时 ${timeoutMs}ms")
+        return null
     }
     
     private fun log(msg: String) {
@@ -282,18 +461,23 @@ class DailyRoutine(
     
     /**
      * ② 等待开始唤醒灰按钮 → 点击 → 下一状态: CLEAR_POPUPS
+     * v3.17改进: 使用密度搜索(色块匹配)，避免背景散点灰色像素导致误点
      */
     private fun handleWaitWake(): DailyState {
         log("=== 等待开始唤醒 ===")
         onAction?.invoke(TestAction.StateChanged(DailyState.WAIT_WAKE))
         
-        val wakeFound = waitForColorInArea(DeviceConfig.WAKE_SEARCH_AREA, DeviceConfig.COLOR_WAKE_GRAY, timeoutMs = 25000)
+        // 使用密度搜索轮询，直到找到按钮色块
+        val wakeFound = waitForDenseColor(
+            DeviceConfig.WAKE_SEARCH_AREA, DeviceConfig.COLOR_WAKE_GRAY,
+            minDensity = 0.15f, timeoutMs = 25000, intervalMs = 500
+        )
         if (wakeFound != null) {
-            log("✅ 开始唤醒搜索成功，点击质心")
+            log("✅ 开始唤醒色块搜索成功，点击质心")
             delay(300)
             clickAbs(wakeFound.first, wakeFound.second)
         } else {
-            log("⚠️ 开始唤醒搜索超时，兜底点击")
+            log("⚠️ 开始唤醒色块搜索超时，兜底点击")
             click(DeviceConfig.WAKE_CLICK)
         }
         delay(2000)
@@ -353,7 +537,7 @@ class DailyRoutine(
         val bmp = screenshot() ?: return null
         
         // 在X按钮搜索区域找灰色像素
-        val absRect = Pct2Abs(DeviceConfig.POPUP_X_AREA)
+        val absRect = screenToBmpRect(DeviceConfig.POPUP_X_AREA, bmp)
         val firstMatch = ScreenshotHelper.searchPixel(
             bmp, absRect.left, absRect.top, absRect.right, absRect.bottom,
             DeviceConfig.COLOR_POPUP_X.checkR, DeviceConfig.COLOR_POPUP_X.checkG, DeviceConfig.COLOR_POPUP_X.checkB
@@ -369,21 +553,19 @@ class DailyRoutine(
             bmp, absRect.left, absRect.top, absRect.right, absRect.bottom,
             DeviceConfig.COLOR_POPUP_X.checkR, DeviceConfig.COLOR_POPUP_X.checkG, DeviceConfig.COLOR_POPUP_X.checkB
         )
-        val candidate = centroid ?: firstMatch
+        val bmpCandidate = centroid ?: firstMatch
         
         // === 关键验证：检查弹窗深色背景是否存在 ===
-        // 弹窗覆盖时，屏幕中央区域应该是深色的(弹窗背景)，而不是正常游戏界面
-        val darkCheckRect = Pct2Abs(DeviceConfig.POPUP_DARK_CHECK_AREA)
+        val darkCheckRect = screenToBmpRect(DeviceConfig.POPUP_DARK_CHECK_AREA, bmp)
         var darkCount = 0
         var totalChecked = 0
-        // 采样检查：每隔20像素检查一个点
         for (y in darkCheckRect.top until darkCheckRect.bottom step 20) {
             for (x in darkCheckRect.left until darkCheckRect.right step 20) {
                 if (x < bmp.width && y < bmp.height) {
                     val pixel = bmp.getPixel(x, y)
-                    val r = android.graphics.Color.red(pixel)
-                    val g = android.graphics.Color.green(pixel)
-                    val b = android.graphics.Color.blue(pixel)
+                    val r = Color.red(pixel)
+                    val g = Color.green(pixel)
+                    val b = Color.blue(pixel)
                     val brightness = (r + g + b) / 3
                     if (brightness < 60) {
                         darkCount++
@@ -392,15 +574,16 @@ class DailyRoutine(
                 }
             }
         }
+        // 先做坐标变换再recycle（bmpToScreen需要bmp.width）
+        val screenCandidate = bmpToScreen(bmpCandidate.first, bmpCandidate.second, bmp)
         bmp.recycle()
         
         val darkRatio = if (totalChecked > 0) darkCount.toFloat() / totalChecked else 0f
-        log("  X候选(${candidate.first},${candidate.second}) 深色背景比例: ${"%.0f".format(darkRatio * 100)}% ($darkCount/$totalChecked)")
+        log("  X候选(${bmpCandidate.first},${bmpCandidate.second}) 深色背景比例: ${"%.0f".format(darkRatio * 100)}% ($darkCount/$totalChecked)")
         
-        // 弹窗覆盖时中央区域至少30%是深色的；主界面中央区域有游戏画面，深色比例很低
         if (darkRatio >= 0.3f) {
             log("  ✅ 弹窗背景验证通过")
-            return candidate
+            return screenCandidate
         } else {
             log("  ❌ 弹窗背景验证失败（可能是主界面），跳过")
             return null
@@ -959,7 +1142,10 @@ class DailyRoutine(
         onAction?.invoke(TestAction.StateChanged(currentState))
         log("=== [测试] 等待开始唤醒 ===")
         
-        val wakeCoord = waitForColorInArea(DeviceConfig.WAKE_SEARCH_AREA, DeviceConfig.COLOR_WAKE_GRAY, timeoutMs = 25000)
+        val wakeCoord = waitForDenseColor(
+            DeviceConfig.WAKE_SEARCH_AREA, DeviceConfig.COLOR_WAKE_GRAY,
+            minDensity = 0.15f, timeoutMs = 25000, intervalMs = 500
+        )
         if (wakeCoord != null) {
             delay(300)
             clickAbs(wakeCoord.first, wakeCoord.second)
