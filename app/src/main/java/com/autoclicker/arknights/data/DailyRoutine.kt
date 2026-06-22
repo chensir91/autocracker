@@ -8,6 +8,7 @@ import android.os.Build
 import android.util.Log
 import android.view.Display
 import com.autoclicker.arknights.util.ClickUtils
+import com.autoclicker.arknights.util.OcrHelper
 import com.autoclicker.arknights.util.ScreenshotHelper
 
 /**
@@ -387,6 +388,60 @@ class DailyRoutine(
         return result
     }
     
+    // ============ OCR文字识别方法 ============
+    
+    /** 单次截图OCR识别指定文字，返回文字正中心屏幕坐标 */
+    private fun checkOcrText(
+        targetText: String,
+        searchArea: DeviceConfig.PctRect? = null
+    ): Pair<Int, Int>? {
+        val bmp = screenshot() ?: return null
+        val bmpSearchArea = if (searchArea != null) screenToBmpRect(searchArea, bmp) else null
+        val found = OcrHelper.findTextCenter(bmp, targetText, bmpSearchArea)
+        val screenCoord = if (found != null) bmpToScreen(found.first, found.second, bmp) else null
+        bmp.recycle()
+        return screenCoord
+    }
+    
+    /** 等待OCR识别到指定文字（轮询截图），返回文字正中心屏幕坐标 */
+    private fun waitForOcrText(
+        targetText: String,
+        searchArea: DeviceConfig.PctRect? = null,
+        timeoutMs: Long = 30000,
+        intervalMs: Long = 500
+    ): Pair<Int, Int>? {
+        val startTime = System.currentTimeMillis()
+        var ocrAttempts = 0
+        var ocrFails = 0
+        while (System.currentTimeMillis() - startTime < timeoutMs && isRunning) {
+            checkPaused()
+            ocrAttempts++
+            val bmp = screenshot()
+            if (bmp == null) {
+                ocrFails++
+                if (ocrFails <= 3) log("⚠️ OCR截图失败 (#$ocrFails)")
+                delay(intervalMs)
+                continue
+            }
+            
+            val bmpSearchArea = if (searchArea != null) screenToBmpRect(searchArea, bmp) else null
+            val found = OcrHelper.findTextCenter(bmp, targetText, bmpSearchArea)
+            
+            // 坐标变换必须在recycle之前！bmpToScreen需要bmp.width
+            val screenCoord = if (found != null) bmpToScreen(found.first, found.second, bmp) else null
+            bmp.recycle()
+            
+            if (screenCoord != null) {
+                log("✅ OCR识别到'$targetText' → 屏幕坐标(${screenCoord.first}, ${screenCoord.second})")
+                onAction?.invoke(TestAction.Recognize("OCR:$targetText"))
+                return screenCoord
+            }
+            delay(intervalMs)
+        }
+        log("❌ OCR识别'$targetText'超时 ${timeoutMs}ms")
+        return null
+    }
+    
     /** 等待识色条件满足（单点轮询） */
     private fun waitForColor(
         coord: DeviceConfig.PctCoord,
@@ -460,24 +515,25 @@ class DailyRoutine(
     }
     
     /**
-     * ② 等待开始唤醒灰按钮 → 点击 → 下一状态: CLEAR_POPUPS
-     * v3.17改进: 使用密度搜索(色块匹配)，避免背景散点灰色像素导致误点
+     * ② 等待开始唤醒 → OCR识别"开始唤醒"文字 → 点击文字正中心 → 下一状态: CLEAR_POPUPS
+     * v3.19改进: 从识色改为OCR文字识别，直接找到"开始唤醒"四个字的边界框，
+     * 点击文字正中心，彻底避免识色偏移和误匹配问题
      */
     private fun handleWaitWake(): DailyState {
         log("=== 等待开始唤醒 ===")
         onAction?.invoke(TestAction.StateChanged(DailyState.WAIT_WAKE))
         
-        // 使用密度搜索轮询，直到找到按钮色块
-        val wakeFound = waitForDenseColor(
-            DeviceConfig.WAKE_SEARCH_AREA, DeviceConfig.COLOR_WAKE_GRAY,
-            minDensity = 0.15f, timeoutMs = 25000, intervalMs = 500
+        // 使用OCR识别"开始唤醒"文字，点击文字正中心
+        val wakeFound = waitForOcrText(
+            "开始唤醒", DeviceConfig.WAKE_SEARCH_AREA,
+            timeoutMs = 25000, intervalMs = 500
         )
         if (wakeFound != null) {
-            log("✅ 开始唤醒色块搜索成功，点击质心")
+            log("✅ OCR找到'开始唤醒'，点击文字正中心")
             delay(300)
             clickAbs(wakeFound.first, wakeFound.second)
         } else {
-            log("⚠️ 开始唤醒色块搜索超时，兜底点击")
+            log("⚠️ OCR未识别到'开始唤醒'，兜底点击")
             click(DeviceConfig.WAKE_CLICK)
         }
         delay(2000)
@@ -1176,9 +1232,9 @@ class DailyRoutine(
         onAction?.invoke(TestAction.StateChanged(currentState))
         log("=== [测试] 等待开始唤醒 ===")
         
-        val wakeCoord = waitForDenseColor(
-            DeviceConfig.WAKE_SEARCH_AREA, DeviceConfig.COLOR_WAKE_GRAY,
-            minDensity = 0.15f, timeoutMs = 25000, intervalMs = 500
+        val wakeCoord = waitForOcrText(
+            "开始唤醒", DeviceConfig.WAKE_SEARCH_AREA,
+            timeoutMs = 25000, intervalMs = 500
         )
         if (wakeCoord != null) {
             delay(300)
