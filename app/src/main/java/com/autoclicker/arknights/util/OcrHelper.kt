@@ -1,12 +1,12 @@
 package com.autoclicker.arknights.util
 
 import android.graphics.Bitmap
-import android.graphics.PointF
 import android.graphics.Rect
 import android.util.Log
 import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.TextRecognizer
 import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 
 /**
@@ -24,8 +24,8 @@ import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 object OcrHelper {
     private const val TAG = "OcrHelper"
 
-    private val recognizer by lazy {
-        TextRecognition.getClient(ChineseTextRecognizerOptions())
+    private val recognizer: TextRecognizer by lazy {
+        TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
     }
 
     /** OCR识别结果：文字+边界框 */
@@ -73,16 +73,16 @@ object OcrHelper {
     /**
      * 在bitmap中搜索目标文字
      * @param bmp 截图bitmap
-     * @param targetText 目标文字（支持部分匹配，如搜"开始唤醒"能匹配到"开始唤醒"这行）
+     * @param targetText 目标文字（支持部分匹配，如搜"开始唤醒"能匹配到包含此文字的行）
      * @param searchArea 搜索区域（bitmap坐标），null则搜全图
      * @return 匹配到的文字边界框（bitmap坐标），未找到返回null
      */
     fun findText(bmp: Bitmap, targetText: String, searchArea: Rect? = null): Rect? {
         val blocks = recognizeText(bmp)
 
-        // 优先精确匹配，再模糊匹配
+        // 优先精确匹配（匹配度最高的），再模糊匹配
         var bestMatch: TextBlock? = null
-        var bestScore = -1
+        var bestScore = -1f
 
         for (block in blocks) {
             if (!block.text.contains(targetText)) continue
@@ -92,8 +92,8 @@ object OcrHelper {
                 continue
             }
 
-            // 匹配得分：文字越短越精确（"开始唤醒"在"点击开始唤醒"中匹配得分高于在"点击开始唤醒按钮"中）
-            val score = targetText.length.toFloat() / block.text.length
+            // 匹配得分：目标文字占该块文字的比例越高越精确
+            val score = targetText.length.toFloat() / block.text.length.toFloat()
             if (score > bestScore) {
                 bestScore = score
                 bestMatch = block
