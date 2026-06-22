@@ -99,6 +99,12 @@ object DeviceConfig {
     /** 弹窗深色背景检测区域（用于验证X按钮确实在弹窗上） */
     val POPUP_DARK_CHECK_AREA = PctRect(20f, 30f, 80f, 70f)
     
+    /** 弹窗确认按钮搜索区域（底部中心，今日配给等无X按钮弹窗的确认按钮） */
+    val POPUP_CONFIRM_SEARCH_AREA = PctRect(35f, 82f, 65f, 95f)
+    
+    /** 弹窗确认按钮兜底点击位置 */
+    val POPUP_CONFIRM_FALLBACK = PctCoord(50f, 88f)
+    
     // ============ 基建 ============
     
     /** 蓝底铃铛搜索区域 (右上角 NOTIFICATION) ✅截图验证 */
@@ -232,8 +238,11 @@ object DeviceConfig {
     /** 今日配给黄色徽章(寻访凭证): R>200, G>150, B<80 ✅截图验证 */
     val COLOR_DAILY_RATION_YELLOW = ColorRule("今日配给黄", { it > 200 }, { it > 150 }, { it < 80 })
     
-    /** 弹窗X灰色按钮: R/G/B均在160-240，且差异小(灰色) — 需配合弹窗背景检测 */
+    /** 弹窗X灰色按钮: R/G/B均在160-240，且差异小(灰色) — 需配合密度检测+弹窗背景验证 */
     val COLOR_POPUP_X = ColorRule("弹窗X灰", { it in 160..240 }, { it in 160..240 }, { it in 160..240 })
+    
+    /** 确认按钮白色对勾: R>220, G>220, B>220 (今日配给等弹窗底部的确认按钮) */
+    val COLOR_CONFIRM_WHITE = ColorRule("确认按钮白", { it > 220 }, { it > 220 }, { it > 220 })
     
     // ---- 基建 ----
     

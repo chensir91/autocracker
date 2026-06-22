@@ -502,16 +502,14 @@ class DailyRoutine(
             if (!isRunning) return DailyState.DONE
             checkPaused()
             
-            // === 第一步：识别今日配给弹窗（黄色徽章） ===
-            val yellowFound = checkColorInArea(DeviceConfig.DAILY_RATION_BADGE_AREA, DeviceConfig.COLOR_DAILY_RATION_YELLOW)
-            if (yellowFound != null) {
-                log("✅ 识别到今日配给弹窗 → 点确认按钮")
-                click(DeviceConfig.DAILY_RATION_CONFIRM)
-                delay(1500)
-                continue
+            // === Step 1: 检查弹窗深色背景 ===
+            val hasDarkOverlay = checkDarkOverlay()
+            if (!hasDarkOverlay) {
+                log("✅ 无弹窗背景，弹窗已清除")
+                break
             }
             
-            // === 第二步：搜索X按钮 + 弹窗背景验证 ===
+            // === Step 2: 搜索X按钮（密度匹配，避免悬浮窗误匹配） ===
             val xFound = searchPopupX()
             if (xFound != null) {
                 log("✅ 找到弹窗X → 点击 (${xFound.first}, ${xFound.second})")
@@ -520,9 +518,19 @@ class DailyRoutine(
                 continue
             }
             
-            // === 没找到任何弹窗 → 清完 ===
-            log("✅ 弹窗已清除完毕")
-            break
+            // === Step 3: 无X按钮但有弹窗 → 搜索确认按钮 ===
+            val confirmFound = searchConfirmButton()
+            if (confirmFound != null) {
+                log("✅ 找到确认按钮 → 点击 (${confirmFound.first}, ${confirmFound.second})")
+                clickAbs(confirmFound.first, confirmFound.second)
+                delay(1500)
+                continue
+            }
+            
+            // === Step 4: 弹窗存在但没找到按钮 → 兜底 ===
+            log("⚠️ 弹窗存在但未找到按钮，兜底点击底部中心")
+            click(DeviceConfig.POPUP_CONFIRM_FALLBACK)
+            delay(1500)
         }
         
         // 进入基建
@@ -530,32 +538,12 @@ class DailyRoutine(
     }
     
     /**
-     * 搜索弹窗X按钮 — 带弹窗背景验证
-     * 先找灰色像素候选，再验证弹窗深色背景存在，防止误点主界面UI
+     * 检查弹窗深色背景是否存在
+     * 弹窗覆盖时屏幕中央区域有大量暗色像素(亮度<60占比≥30%)
+     * 主界面游戏画面较明亮，深色比例远低于30%
      */
-    private fun searchPopupX(): Pair<Int, Int>? {
-        val bmp = screenshot() ?: return null
-        
-        // 在X按钮搜索区域找灰色像素
-        val absRect = screenToBmpRect(DeviceConfig.POPUP_X_AREA, bmp)
-        val firstMatch = ScreenshotHelper.searchPixel(
-            bmp, absRect.left, absRect.top, absRect.right, absRect.bottom,
-            DeviceConfig.COLOR_POPUP_X.checkR, DeviceConfig.COLOR_POPUP_X.checkG, DeviceConfig.COLOR_POPUP_X.checkB
-        )
-        
-        if (firstMatch == null) {
-            bmp.recycle()
-            return null
-        }
-        
-        // 找到灰色像素 → 计算质心
-        val centroid = ScreenshotHelper.searchPixelCentroid(
-            bmp, absRect.left, absRect.top, absRect.right, absRect.bottom,
-            DeviceConfig.COLOR_POPUP_X.checkR, DeviceConfig.COLOR_POPUP_X.checkG, DeviceConfig.COLOR_POPUP_X.checkB
-        )
-        val bmpCandidate = centroid ?: firstMatch
-        
-        // === 关键验证：检查弹窗深色背景是否存在 ===
+    private fun checkDarkOverlay(): Boolean {
+        val bmp = screenshot() ?: return false
         val darkCheckRect = screenToBmpRect(DeviceConfig.POPUP_DARK_CHECK_AREA, bmp)
         var darkCount = 0
         var totalChecked = 0
@@ -563,29 +551,75 @@ class DailyRoutine(
             for (x in darkCheckRect.left until darkCheckRect.right step 20) {
                 if (x < bmp.width && y < bmp.height) {
                     val pixel = bmp.getPixel(x, y)
-                    val r = Color.red(pixel)
-                    val g = Color.green(pixel)
-                    val b = Color.blue(pixel)
-                    val brightness = (r + g + b) / 3
-                    if (brightness < 60) {
-                        darkCount++
-                    }
+                    val brightness = (Color.red(pixel) + Color.green(pixel) + Color.blue(pixel)) / 3
+                    if (brightness < 60) darkCount++
                     totalChecked++
                 }
             }
         }
-        // 先做坐标变换再recycle（bmpToScreen需要bmp.width）
-        val screenCandidate = bmpToScreen(bmpCandidate.first, bmpCandidate.second, bmp)
+        bmp.recycle()
+        val darkRatio = if (totalChecked > 0) darkCount.toFloat() / totalChecked else 0f
+        log("  弹窗深色背景: ${"%.0f".format(darkRatio * 100)}% ($darkCount/$totalChecked)")
+        return darkRatio >= 0.3f
+    }
+    
+    /**
+     * 搜索弹窗确认按钮 — 今日配给等无X按钮弹窗的底部确认
+     * 确认按钮特征：黑色圆形中白色对勾，在底部中心区域(35-65%, 82-95%)
+     * 搜索白色密集色块(RGB>220)，质心即为按钮中心
+     */
+    private fun searchConfirmButton(): Pair<Int, Int>? {
+        val bmp = screenshot() ?: return null
+        val result = searchColorDense(bmp, DeviceConfig.POPUP_CONFIRM_SEARCH_AREA, DeviceConfig.COLOR_CONFIRM_WHITE, minDensity = 0.05f)
         bmp.recycle()
         
-        val darkRatio = if (totalChecked > 0) darkCount.toFloat() / totalChecked else 0f
-        log("  X候选(${bmpCandidate.first},${bmpCandidate.second}) 深色背景比例: ${"%.0f".format(darkRatio * 100)}% ($darkCount/$totalChecked)")
-        
-        if (darkRatio >= 0.3f) {
-            log("  ✅ 弹窗背景验证通过")
-            return screenCandidate
+        if (result != null) {
+            log("  ✅ 确认按钮搜索成功 (${result.first}, ${result.second})")
         } else {
-            log("  ❌ 弹窗背景验证失败（可能是主界面），跳过")
+            log("  ❌ 确认按钮未找到")
+        }
+        return result
+    }
+    
+        /**
+     * 搜索弹窗X按钮 — 密度匹配 + 弹窗背景验证
+     * v3.18: 使用密度搜索替代散点匹配，避免悬浮窗灰色UI误匹配
+     * X按钮是密集灰色色块(密度>8%)，悬浮窗UI的灰色像素分散(密度低)
+     */
+    private fun searchPopupX(): Pair<Int, Int>? {
+        val bmp = screenshot() ?: return null
+        
+        // 先验证弹窗深色背景（没有弹窗就不需要搜X）
+        val darkCheckRect = screenToBmpRect(DeviceConfig.POPUP_DARK_CHECK_AREA, bmp)
+        var darkCount = 0
+        var totalChecked = 0
+        for (y in darkCheckRect.top until darkCheckRect.bottom step 20) {
+            for (x in darkCheckRect.left until darkCheckRect.right step 20) {
+                if (x < bmp.width && y < bmp.height) {
+                    val pixel = bmp.getPixel(x, y)
+                    val brightness = (Color.red(pixel) + Color.green(pixel) + Color.blue(pixel)) / 3
+                    if (brightness < 60) darkCount++
+                    totalChecked++
+                }
+            }
+        }
+        val darkRatio = if (totalChecked > 0) darkCount.toFloat() / totalChecked else 0f
+        
+        if (darkRatio < 0.3f) {
+            bmp.recycle()
+            log("  X按钮搜索: 深色背景${"%.0f".format(darkRatio * 100)}% < 30%，无弹窗")
+            return null
+        }
+        
+        // 弹窗背景存在 → 用密度搜索找X按钮（密集灰色色块）
+        val xCoord = searchColorDense(bmp, DeviceConfig.POPUP_X_AREA, DeviceConfig.COLOR_POPUP_X, minDensity = 0.08f)
+        bmp.recycle()
+        
+        if (xCoord != null) {
+            log("  ✅ X按钮密度匹配成功 (${xCoord.first}, ${xCoord.second})")
+            return xCoord
+        } else {
+            log("  ❌ X按钮未找到（灰色像素密度不足，非X按钮）")
             return null
         }
     }
@@ -1168,26 +1202,35 @@ class DailyRoutine(
             if (!isRunning) break
             checkPaused()
             
-            // 1. 今日配给弹窗
-            val yellowFound = checkColorInArea(DeviceConfig.DAILY_RATION_BADGE_AREA, DeviceConfig.COLOR_DAILY_RATION_YELLOW)
-            if (yellowFound != null) {
-                log("识别到今日配给 → 点确认")
-                click(DeviceConfig.DAILY_RATION_CONFIRM)
-                delay(1500)
-                continue
+            // Step 1: 检查弹窗深色背景是否存在
+            val hasDarkOverlay = checkDarkOverlay()
+            if (!hasDarkOverlay) {
+                log("✅ 无弹窗背景，弹窗已清除")
+                break
             }
             
-            // 2. X按钮 + 背景验证
+            // Step 2: 尝试找X按钮（带密度验证，避免悬浮窗灰色UI误匹配）
             val xFound = searchPopupX()
             if (xFound != null) {
-                log("找到弹窗X → 点击")
+                log("✅ 找到弹窗X → 点击")
                 clickAbs(xFound.first, xFound.second)
                 delay(1000)
                 continue
             }
             
-            log("✅ 弹窗已清除")
-            break
+            // Step 3: 无X按钮但有弹窗 → 搜索确认按钮（今日配给等无X弹窗）
+            val confirmFound = searchConfirmButton()
+            if (confirmFound != null) {
+                log("✅ 找到确认按钮 → 点击")
+                clickAbs(confirmFound.first, confirmFound.second)
+                delay(1500)
+                continue
+            }
+            
+            // Step 4: 弹窗存在但没找到任何按钮 → 兜底点击
+            log("⚠️ 弹窗存在但未找到按钮，兜底点击底部中心")
+            click(DeviceConfig.POPUP_CONFIRM_FALLBACK)
+            delay(1500)
         }
         
         log("✅ 关弹窗模块完成")
