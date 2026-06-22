@@ -62,6 +62,9 @@ object DeviceConfig {
     /** 主界面-基建模块 (右下区域) ❌需OCR */
     val MAIN_BASE = PctCoord(83f, 85f)
     
+    /** 主界面-基建搜索区域（OCR搜索"基建"文字） ✅截图验证 (74.8-79.7%, 81.9-87.7%) +余量 */
+    val MAIN_BASE_SEARCH_AREA = PctRect(70f, 78f, 85f, 92f)
+    
     /** 主界面-任务模块 (中下方) ❌需OCR */
     val MAIN_MISSION = PctCoord(83f, 78f)
     
@@ -93,8 +96,8 @@ object DeviceConfig {
     /** 今日配给弹窗-确认按钮(底部中心黑色圆形) ✅截图验证 */
     val DAILY_RATION_CONFIRM = PctCoord(50f, 82f)
     
-    /** 弹窗X按钮搜索区域 — 扩大范围覆盖不同弹窗位置，但避开顶部6%状态栏 */
-    val POPUP_X_AREA = PctRect(55f, 6f, 97f, 30f)
+    /** 弹窗X按钮搜索区域 — 右上角灰色X圆形按钮 ✅截图验证 (85.2-86.7%,7.9-11.1%) +余量 */
+    val POPUP_X_AREA = PctRect(78f, 3f, 95f, 18f)
     
     /** 弹窗深色背景检测区域（用于验证X按钮确实在弹窗上） */
     val POPUP_DARK_CHECK_AREA = PctRect(20f, 30f, 80f, 70f)
@@ -238,8 +241,8 @@ object DeviceConfig {
     /** 今日配给黄色徽章(寻访凭证): R>200, G>150, B<80 ✅截图验证 */
     val COLOR_DAILY_RATION_YELLOW = ColorRule("今日配给黄", { it > 200 }, { it > 150 }, { it < 80 })
     
-    /** 弹窗X灰色按钮: R/G/B均在160-240，且差异小(灰色) — 需配合密度检测+弹窗背景验证 */
-    val COLOR_POPUP_X = ColorRule("弹窗X灰", { it in 160..240 }, { it in 160..240 }, { it in 160..240 })
+    /** 弹窗X灰色按钮: R/G/B均在110-200，且差异小(灰色) — ✅截图验证 RGB≈(150-170) 需配合密度检测 */
+    val COLOR_POPUP_X = ColorRule("弹窗X灰", { it in 110..200 }, { it in 110..200 }, { it in 110..200 })
     
     /** 确认按钮白色对勾: R>220, G>220, B>220 (今日配给等弹窗底部的确认按钮) */
     val COLOR_CONFIRM_WHITE = ColorRule("确认按钮白", { it > 220 }, { it > 220 }, { it > 220 })

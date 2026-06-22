@@ -541,86 +541,67 @@ class DailyRoutine(
     }
     
     /**
-     * ③ 清弹窗 — 先识别今日配给→再搜X按钮→确认弹窗背景才点击
-     * 新策略(v3.16):
-     * 1. 搜索今日配给黄色徽章 → 点确认按钮关闭
-     * 2. 搜索X按钮(灰色) + 验证弹窗深色背景存在(防止误点主界面UI)
-     * 3. 都没找到 → 弹窗已清完
-     * → 下一状态: BASE_COLLECT
+     * ③ 清弹窗(v3.19) — 简化四步流程:
+     * 1. OCR识别"今日配给" → 点击确认按钮领取
+     * 2. 密度识色找X按钮 → 点击关闭签到弹窗
+     * 3. 重复点X最多3次(关闭后续弹窗)
+     * 4. OCR识别"基建" → 点击文字正中心进入基建
+     * → 下一状态: BASE_COLLECT (已在基建内，跳过进入步骤)
      */
     private fun handleClearPopups(): DailyState {
         log("=== 清理活动弹窗 ===")
         onAction?.invoke(TestAction.StateChanged(DailyState.CLEAR_POPUPS))
         
-        delay(3000) // 等弹窗完全加载
+        delay(2000) // 等弹窗完全加载
         
-        for (i in 1..MAX_POPUP_CLOSES) {
-            if (!isRunning) return DailyState.DONE
-            checkPaused()
-            
-            // === Step 1: 检查弹窗深色背景 ===
-            val hasDarkOverlay = checkDarkOverlay()
-            if (!hasDarkOverlay) {
-                log("✅ 无弹窗背景，弹窗已清除")
-                break
-            }
-            
-            // === Step 2: 搜索X按钮（密度匹配，避免悬浮窗误匹配） ===
-            val xFound = searchPopupX()
-            if (xFound != null) {
-                log("✅ 找到弹窗X → 点击 (${xFound.first}, ${xFound.second})")
-                clickAbs(xFound.first, xFound.second)
-                delay(1000)
-                continue
-            }
-            
-            // === Step 3: 无X按钮但有弹窗 → 搜索确认按钮 ===
+        // Step 1: OCR识别"今日配给"弹窗 → 点击确认按钮领取
+        val dailyRation = checkOcrText("今日配给")
+        if (dailyRation != null) {
+            log("✅ OCR找到'今日配给'弹窗 → 点击确认按钮领取")
             val confirmFound = searchConfirmButton()
             if (confirmFound != null) {
-                log("✅ 找到确认按钮 → 点击 (${confirmFound.first}, ${confirmFound.second})")
                 clickAbs(confirmFound.first, confirmFound.second)
-                delay(1500)
-                continue
+            } else {
+                click(DeviceConfig.POPUP_CONFIRM_FALLBACK)
             }
-            
-            // === Step 4: 弹窗存在但没找到按钮 → 兜底 ===
-            log("⚠️ 弹窗存在但未找到按钮，兜底点击底部中心")
-            click(DeviceConfig.POPUP_CONFIRM_FALLBACK)
             delay(1500)
+        } else {
+            log("未找到'今日配给'弹窗，跳过")
         }
         
-        // 进入基建
+        // Step 2-3: 密度识色找X按钮，最多点4次(1次签到+3次后续弹窗)
+        for (i in 1..4) {
+            if (!isRunning) return DailyState.DONE
+            checkPaused()
+            val xFound = searchPopupX()
+            if (xFound != null) {
+                log("✅ 找到弹窗X(${i}) → 点击 (${xFound.first}, ${xFound.second})")
+                clickAbs(xFound.first, xFound.second)
+                delay(1000)
+            } else {
+                log("✅ 无更多弹窗X，弹窗已清完")
+                break
+            }
+        }
+        
+        // Step 4: OCR识别"基建" → 点击文字正中心
+        delay(500)
+        val baseFound = checkOcrText("基建", DeviceConfig.MAIN_BASE_SEARCH_AREA)
+        if (baseFound != null) {
+            log("✅ OCR找到'基建' → 点击文字正中心")
+            clickAbs(baseFound.first, baseFound.second)
+        } else {
+            log("⚠️ OCR未找到'基建'，兜底点击固定坐标")
+            click(DeviceConfig.MAIN_BASE)
+        }
+        delay(2000)
+        
+        // 已进入基建，下一状态直接开始基建操作
         return DailyState.BASE_COLLECT
     }
     
     /**
-     * 检查弹窗深色背景是否存在
-     * 弹窗覆盖时屏幕中央区域有大量暗色像素(亮度<60占比≥30%)
-     * 主界面游戏画面较明亮，深色比例远低于30%
-     */
-    private fun checkDarkOverlay(): Boolean {
-        val bmp = screenshot() ?: return false
-        val darkCheckRect = screenToBmpRect(DeviceConfig.POPUP_DARK_CHECK_AREA, bmp)
-        var darkCount = 0
-        var totalChecked = 0
-        for (y in darkCheckRect.top until darkCheckRect.bottom step 20) {
-            for (x in darkCheckRect.left until darkCheckRect.right step 20) {
-                if (x < bmp.width && y < bmp.height) {
-                    val pixel = bmp.getPixel(x, y)
-                    val brightness = (Color.red(pixel) + Color.green(pixel) + Color.blue(pixel)) / 3
-                    if (brightness < 60) darkCount++
-                    totalChecked++
-                }
-            }
-        }
-        bmp.recycle()
-        val darkRatio = if (totalChecked > 0) darkCount.toFloat() / totalChecked else 0f
-        log("  弹窗深色背景: ${"%.0f".format(darkRatio * 100)}% ($darkCount/$totalChecked)")
-        return darkRatio >= 0.3f
-    }
-    
-    /**
-     * 搜索弹窗确认按钮 — 今日配给等无X按钮弹窗的底部确认
+     * 搜索弹窗确认按钮 — 今日配给等弹窗底部的确认按钮
      * 确认按钮特征：黑色圆形中白色对勾，在底部中心区域(35-65%, 82-95%)
      * 搜索白色密集色块(RGB>220)，质心即为按钮中心
      */
@@ -637,37 +618,15 @@ class DailyRoutine(
         return result
     }
     
-        /**
-     * 搜索弹窗X按钮 — 密度匹配 + 弹窗背景验证
-     * v3.18: 使用密度搜索替代散点匹配，避免悬浮窗灰色UI误匹配
-     * X按钮是密集灰色色块(密度>8%)，悬浮窗UI的灰色像素分散(密度低)
+    /**
+     * 搜索弹窗X按钮 — 密度匹配
+     * v3.19: 简化，去掉深色背景预检查（由上层流程控制何时搜索X）
+     * X按钮特征：右上角灰色圆形(密度>8%)，白色X符号在灰色背景上
      */
     private fun searchPopupX(): Pair<Int, Int>? {
         val bmp = screenshot() ?: return null
         
-        // 先验证弹窗深色背景（没有弹窗就不需要搜X）
-        val darkCheckRect = screenToBmpRect(DeviceConfig.POPUP_DARK_CHECK_AREA, bmp)
-        var darkCount = 0
-        var totalChecked = 0
-        for (y in darkCheckRect.top until darkCheckRect.bottom step 20) {
-            for (x in darkCheckRect.left until darkCheckRect.right step 20) {
-                if (x < bmp.width && y < bmp.height) {
-                    val pixel = bmp.getPixel(x, y)
-                    val brightness = (Color.red(pixel) + Color.green(pixel) + Color.blue(pixel)) / 3
-                    if (brightness < 60) darkCount++
-                    totalChecked++
-                }
-            }
-        }
-        val darkRatio = if (totalChecked > 0) darkCount.toFloat() / totalChecked else 0f
-        
-        if (darkRatio < 0.3f) {
-            bmp.recycle()
-            log("  X按钮搜索: 深色背景${"%.0f".format(darkRatio * 100)}% < 30%，无弹窗")
-            return null
-        }
-        
-        // 弹窗背景存在 → 用密度搜索找X按钮（密集灰色色块）
+        // 密度搜索找X按钮（密集灰色色块）
         val xCoord = searchColorDense(bmp, DeviceConfig.POPUP_X_AREA, DeviceConfig.COLOR_POPUP_X, minDensity = 0.08f)
         bmp.recycle()
         
@@ -675,7 +634,7 @@ class DailyRoutine(
             log("  ✅ X按钮密度匹配成功 (${xCoord.first}, ${xCoord.second})")
             return xCoord
         } else {
-            log("  ❌ X按钮未找到（灰色像素密度不足，非X按钮）")
+            log("  ❌ X按钮未找到")
             return null
         }
     }
@@ -688,9 +647,9 @@ class DailyRoutine(
         log("=== 基建收取 ===")
         onAction?.invoke(TestAction.StateChanged(DailyState.BASE_COLLECT))
         
-        // 点击主界面基建模块进入基建
-        click(DeviceConfig.MAIN_BASE)
-        delay(2000)
+        // v3.19: 清弹窗模块已通过OCR识别并点击"基建"进入基建，无需再点击
+        // 如果还没进基建（如从其他入口进入），尝试OCR再点一次
+        delay(1000)
         
         // 识别右上角蓝底铃铛并点击
         val bellFound = checkColorInArea(DeviceConfig.BASE_BELL_AREA, DeviceConfig.COLOR_BASE_BELL)
@@ -1254,39 +1213,46 @@ class DailyRoutine(
         log("=== [测试] 清理活动弹窗 ===")
         
         delay(1000)
-        for (i in 1..MAX_POPUP_CLOSES) {
-            if (!isRunning) break
-            checkPaused()
-            
-            // Step 1: 检查弹窗深色背景是否存在
-            val hasDarkOverlay = checkDarkOverlay()
-            if (!hasDarkOverlay) {
-                log("✅ 无弹窗背景，弹窗已清除")
-                break
-            }
-            
-            // Step 2: 尝试找X按钮（带密度验证，避免悬浮窗灰色UI误匹配）
-            val xFound = searchPopupX()
-            if (xFound != null) {
-                log("✅ 找到弹窗X → 点击")
-                clickAbs(xFound.first, xFound.second)
-                delay(1000)
-                continue
-            }
-            
-            // Step 3: 无X按钮但有弹窗 → 搜索确认按钮（今日配给等无X弹窗）
+        
+        // Step 1: OCR识别"今日配给"弹窗 → 点击确认按钮领取
+        val dailyRation = checkOcrText("今日配给")
+        if (dailyRation != null) {
+            log("✅ OCR找到'今日配给'弹窗 → 点击确认按钮领取")
             val confirmFound = searchConfirmButton()
             if (confirmFound != null) {
-                log("✅ 找到确认按钮 → 点击")
                 clickAbs(confirmFound.first, confirmFound.second)
-                delay(1500)
-                continue
+            } else {
+                click(DeviceConfig.POPUP_CONFIRM_FALLBACK)
             }
-            
-            // Step 4: 弹窗存在但没找到任何按钮 → 兜底点击
-            log("⚠️ 弹窗存在但未找到按钮，兜底点击底部中心")
-            click(DeviceConfig.POPUP_CONFIRM_FALLBACK)
             delay(1500)
+        } else {
+            log("未找到'今日配给'弹窗，跳过")
+        }
+        
+        // Step 2-3: 密度识色找X按钮，最多点4次
+        for (i in 1..4) {
+            if (!isRunning) break
+            checkPaused()
+            val xFound = searchPopupX()
+            if (xFound != null) {
+                log("✅ 找到弹窗X(${i}) → 点击")
+                clickAbs(xFound.first, xFound.second)
+                delay(1000)
+            } else {
+                log("✅ 无更多弹窗X，弹窗已清完")
+                break
+            }
+        }
+        
+        // Step 4: OCR识别"基建" → 点击文字正中心
+        delay(500)
+        val baseFound = checkOcrText("基建", DeviceConfig.MAIN_BASE_SEARCH_AREA)
+        if (baseFound != null) {
+            log("✅ OCR找到'基建' → 点击文字正中心")
+            clickAbs(baseFound.first, baseFound.second)
+        } else {
+            log("⚠️ OCR未找到'基建'，兜底点击")
+            click(DeviceConfig.MAIN_BASE)
         }
         
         log("✅ 关弹窗模块完成")
@@ -1296,10 +1262,10 @@ class DailyRoutine(
     private fun runBaseCollectModule() {
         currentState = DailyState.BASE_COLLECT
         onAction?.invoke(TestAction.StateChanged(currentState))
-        log("=== [测试] 基建收取（请先在主界面） ===")
+        log("=== [测试] 基建收取（请已在基建界面） ===")
         
-        click(DeviceConfig.MAIN_BASE)
-        delay(2000)
+        // v3.19: 清弹窗模块已通过OCR进入基建，这里直接开始操作
+        delay(1000)
         
         val bellFound = checkColorInArea(DeviceConfig.BASE_BELL_AREA, DeviceConfig.COLOR_BASE_BELL)
         if (bellFound != null) {
