@@ -554,10 +554,11 @@ class DailyRoutine(
         
         delay(2000) // 等弹窗完全加载
         
-        // Step 1: OCR识别"今日配给"弹窗 → 点击确认按钮领取
-        val dailyRation = checkOcrText("今日配给")
+        // Step 1: OCR等待"今日配给"弹窗出现 → 点击确认按钮领取
+        // 没识别到就一直等，不跳下一步（进游戏后必有此弹窗）
+        val dailyRation = waitForOcrText("今日配给", timeoutMs = 60000, intervalMs = 800)
         if (dailyRation != null) {
-            log("✅ OCR找到'今日配给'弹窗 → 点击确认按钮领取")
+            log("✅ OCR识别到'今日配给' → 点击确认按钮领取")
             val confirmFound = searchConfirmButton()
             if (confirmFound != null) {
                 clickAbs(confirmFound.first, confirmFound.second)
@@ -566,21 +567,43 @@ class DailyRoutine(
             }
             delay(1500)
         } else {
-            log("未找到'今日配给'弹窗，跳过")
+            log("⚠️ 等待'今日配给'超时，尝试继续")
         }
         
-        // Step 2-3: 密度识色找X按钮，最多点4次(1次签到+3次后续弹窗)
-        for (i in 1..4) {
+        // Step 2: 在3个固定X位置用密度搜索X并点击，重复3轮
+        for (round in 1..3) {
             if (!isRunning) return DailyState.DONE
             checkPaused()
-            val xFound = searchPopupX()
-            if (xFound != null) {
-                log("✅ 找到弹窗X(${i}) → 点击 (${xFound.first}, ${xFound.second})")
+            val xPositions = searchAllPopupX()
+            if (xPositions.isEmpty()) {
+                log("✅ 第${round}轮无X按钮，弹窗已清完")
+                break
+            }
+            for ((idx, xFound) in xPositions.withIndex()) {
+                log("✅ 第${round}轮找到X(${idx+1}) → 点击 (${xFound.first}, ${xFound.second})")
                 clickAbs(xFound.first, xFound.second)
                 delay(1000)
-            } else {
-                log("✅ 无更多弹窗X，弹窗已清完")
+            }
+        }
+        
+        // Step 3: 验证3个X位置确保无残留X，有则继续清
+        var verifyRound = 0
+        while (isRunning) {
+            checkPaused()
+            verifyRound++
+            val remainingX = searchAllPopupX()
+            if (remainingX.isEmpty()) {
+                log("✅ 验证完成，无残留X按钮")
                 break
+            }
+            if (verifyRound > 10) {
+                log("⚠️ 验证X超过10轮，强制继续")
+                break
+            }
+            for ((idx, xFound) in remainingX.withIndex()) {
+                log("✅ 验证轮${verifyRound}发现残留X(${idx+1}) → 点击")
+                clickAbs(xFound.first, xFound.second)
+                delay(1000)
             }
         }
         
@@ -619,24 +642,35 @@ class DailyRoutine(
     }
     
     /**
-     * 搜索弹窗X按钮 — 密度匹配
-     * v3.19: 简化，去掉深色背景预检查（由上层流程控制何时搜索X）
-     * X按钮特征：右上角灰色圆形(密度>8%)，白色X符号在灰色背景上
+     * 搜索所有弹窗X按钮 — 在3个固定位置用密度匹配
+     * v3.21: 3个固定X位置（签到/活动/公告弹窗），分别搜索
+     * 返回所有找到的X按钮坐标列表
      */
-    private fun searchPopupX(): Pair<Int, Int>? {
-        val bmp = screenshot() ?: return null
+    private fun searchAllPopupX(): List<Pair<Int, Int>> {
+        val bmp = screenshot() ?: return emptyList()
+        val results = mutableListOf<Pair<Int, Int>>()
         
-        // 密度搜索找X按钮（密集灰色色块）
-        val xCoord = searchColorDense(bmp, DeviceConfig.POPUP_X_AREA, DeviceConfig.COLOR_POPUP_X, minDensity = 0.08f)
+        for ((idx, area) in DeviceConfig.POPUP_X_AREAS.withIndex()) {
+            val xCoord = searchColorDense(bmp, area, DeviceConfig.COLOR_POPUP_X, minDensity = 0.08f)
+            if (xCoord != null) {
+                log("  ✅ X位置${idx+1}密度匹配成功 (${xCoord.first}, ${xCoord.second})")
+                results.add(xCoord)
+            }
+        }
+        
         bmp.recycle()
         
-        if (xCoord != null) {
-            log("  ✅ X按钮密度匹配成功 (${xCoord.first}, ${xCoord.second})")
-            return xCoord
-        } else {
-            log("  ❌ X按钮未找到")
-            return null
+        if (results.isEmpty()) {
+            log("  ❌ 3个X位置均未找到X按钮")
         }
+        return results
+    }
+    
+    /**
+     * 搜索单个弹窗X按钮（兼容旧调用）
+     */
+    private fun searchPopupX(): Pair<Int, Int>? {
+        return searchAllPopupX().firstOrNull()
     }
     
     /**
@@ -1214,10 +1248,11 @@ class DailyRoutine(
         
         delay(1000)
         
-        // Step 1: OCR识别"今日配给"弹窗 → 点击确认按钮领取
-        val dailyRation = checkOcrText("今日配给")
+        // Step 1: OCR等待"今日配给"弹窗出现 → 点击确认按钮领取
+        // 没识别到就一直等，不跳下一步（进游戏后必有此弹窗）
+        val dailyRation = waitForOcrText("今日配给", timeoutMs = 60000, intervalMs = 800)
         if (dailyRation != null) {
-            log("✅ OCR找到'今日配给'弹窗 → 点击确认按钮领取")
+            log("✅ OCR识别到'今日配给' → 点击确认按钮领取")
             val confirmFound = searchConfirmButton()
             if (confirmFound != null) {
                 clickAbs(confirmFound.first, confirmFound.second)
@@ -1226,21 +1261,43 @@ class DailyRoutine(
             }
             delay(1500)
         } else {
-            log("未找到'今日配给'弹窗，跳过")
+            log("⚠️ 等待'今日配给'超时，尝试继续")
         }
         
-        // Step 2-3: 密度识色找X按钮，最多点4次
-        for (i in 1..4) {
+        // Step 2: 在3个固定X位置用密度搜索并点击，重复3轮
+        for (round in 1..3) {
             if (!isRunning) break
             checkPaused()
-            val xFound = searchPopupX()
-            if (xFound != null) {
-                log("✅ 找到弹窗X(${i}) → 点击")
+            val xPositions = searchAllPopupX()
+            if (xPositions.isEmpty()) {
+                log("✅ 第${round}轮无X按钮，弹窗已清完")
+                break
+            }
+            for ((idx, xFound) in xPositions.withIndex()) {
+                log("✅ 第${round}轮找到X(${idx+1}) → 点击")
                 clickAbs(xFound.first, xFound.second)
                 delay(1000)
-            } else {
-                log("✅ 无更多弹窗X，弹窗已清完")
+            }
+        }
+        
+        // Step 3: 验证3个X位置确保无残留X
+        var verifyRound = 0
+        while (isRunning) {
+            checkPaused()
+            verifyRound++
+            val remainingX = searchAllPopupX()
+            if (remainingX.isEmpty()) {
+                log("✅ 验证完成，无残留X按钮")
                 break
+            }
+            if (verifyRound > 10) {
+                log("⚠️ 验证X超过10轮，强制继续")
+                break
+            }
+            for ((idx, xFound) in remainingX.withIndex()) {
+                log("✅ 验证轮${verifyRound}发现残留X(${idx+1}) → 点击")
+                clickAbs(xFound.first, xFound.second)
+                delay(1000)
             }
         }
         

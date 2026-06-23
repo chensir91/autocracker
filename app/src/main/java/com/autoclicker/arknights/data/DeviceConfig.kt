@@ -96,8 +96,19 @@ object DeviceConfig {
     /** 今日配给弹窗-确认按钮(底部中心黑色圆形) ✅截图验证 */
     val DAILY_RATION_CONFIRM = PctCoord(50f, 82f)
     
-    /** 弹窗X按钮搜索区域 — 右上角灰色X圆形按钮 ✅截图验证 (85.2-86.7%,7.9-11.1%) +余量 */
+    /** 弹窗X按钮搜索区域（旧版，兼容保留） */
     val POPUP_X_AREA = PctRect(78f, 3f, 95f, 18f)
+    
+    /** 弹窗X按钮3个固定位置 — v3.21 密度搜索 ✅截图验证
+     *  位置1: 签到弹窗X — 中心(85.9%, 9.5%)  区域±3%
+     *  位置2: 活动弹窗X — 中心(94.4%, 12.6%) 区域±3%
+     *  位置3: 公告弹窗X — 中心(89.9%, 4.4%)  区域±3%
+     */
+    val POPUP_X_AREAS = listOf(
+        PctRect(83f, 6f, 89f, 13f),   // 签到弹窗X
+        PctRect(91f, 9f, 97f, 16f),    // 活动弹窗X
+        PctRect(86f, 1f, 93f, 8f)      // 公告弹窗X
+    )
     
     /** 弹窗深色背景检测区域（用于验证X按钮确实在弹窗上） */
     val POPUP_DARK_CHECK_AREA = PctRect(20f, 30f, 80f, 70f)
