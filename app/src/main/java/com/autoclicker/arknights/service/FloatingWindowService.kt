@@ -2058,6 +2058,15 @@ class FloatingWindowService : Service() {
         
         // 创建DailyRoutine实例
         dailyRoutine = DailyRoutine(service, screenWidth, screenHeight)
+
+        // v3.22: 显示版本号 + 错误Toast带版本前缀
+        val versionName = try {
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "未知"
+        } catch (e: Exception) { "未知" }
+        Toast.makeText(this, "丛雨工具箱 v$versionName 启动", Toast.LENGTH_SHORT).show()
+        dailyRoutine?.onError = { msg ->
+            Toast.makeText(this, "[v$versionName] $msg", Toast.LENGTH_LONG).show()
+        }
         
         // 设置回调
         dailyRoutine?.onAction = { action ->
