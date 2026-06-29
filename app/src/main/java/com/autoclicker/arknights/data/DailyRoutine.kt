@@ -268,9 +268,11 @@ class DailyRoutine(
         rule: DeviceConfig.ColorRule,
         minDensity: Float = 0.15f,
         localRadius: Int = 50,
-        step: Int = 3
+        step: Int = 3,
+        excludeArea: DeviceConfig.PctRect? = null  // v3.23: 排除区域(如源石/+号)
     ): Pair<Int, Int>? {
         val absRect = screenToBmpRect(rect, bmp)
+        val absExclude = excludeArea?.let { screenToBmpRect(it, bmp) }
         
         // 搜索所有匹配点，按密度筛选
         var bestCenter: Pair<Int, Int>? = null
@@ -281,6 +283,8 @@ class DailyRoutine(
         for (y in absRect.top until absRect.bottom step (step * 4)) {
             for (x in absRect.left until absRect.right step (step * 4)) {
                 if (x < 0 || x >= bmp.width || y < 0 || y >= bmp.height) continue
+                // v3.23: 跳过排除区域内的像素(源石/+号等干扰UI)
+                if (absExclude != null && x in absExclude.left..absExclude.right && y in absExclude.top..absExclude.bottom) continue
                 searchAttempts++
                 val pixel = bmp.getPixel(x, y)
                 val r = Color.red(pixel)
@@ -301,6 +305,11 @@ class DailyRoutine(
                 
                 for (ly in ct until cb step step) {
                     for (lx in cl until cr step step) {
+                        // v3.23: 密度计算也排除源石/+区域
+                        if (absExclude != null && lx in absExclude.left..absExclude.right && ly in absExclude.top..absExclude.bottom) {
+                            totalCount++
+                            continue
+                        }
                         val lp = bmp.getPixel(lx, ly)
                         val lr = Color.red(lp)
                         val lg = Color.green(lp)
@@ -643,7 +652,7 @@ class DailyRoutine(
     
     /**
      * 搜索所有弹窗X按钮 — 在3个固定位置用密度匹配
-     * v3.21: 3个固定X位置（签到/活动/公告弹窗），分别搜索
+     * v3.23: 排除源石/+号区域，避免误匹配右上角资源栏
      * 返回所有找到的X按钮坐标列表
      */
     private fun searchAllPopupX(): List<Pair<Int, Int>> {
@@ -651,7 +660,8 @@ class DailyRoutine(
         val results = mutableListOf<Pair<Int, Int>>()
         
         for ((idx, area) in DeviceConfig.POPUP_X_AREAS.withIndex()) {
-            val xCoord = searchColorDense(bmp, area, DeviceConfig.COLOR_POPUP_X, minDensity = 0.08f)
+            val xCoord = searchColorDense(bmp, area, DeviceConfig.COLOR_POPUP_X, 
+                minDensity = 0.08f, excludeArea = DeviceConfig.ORIGIN_STONE_EXCLUDE)
             if (xCoord != null) {
                 log("  ✅ X位置${idx+1}密度匹配成功 (${xCoord.first}, ${xCoord.second})")
                 results.add(xCoord)
