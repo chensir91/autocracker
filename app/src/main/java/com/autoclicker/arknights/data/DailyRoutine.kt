@@ -579,57 +579,48 @@ class DailyRoutine(
             log("⚠️ 等待'今日配给'超时，尝试继续")
         }
         
-        // Step 2: 在3个固定X位置用密度搜索X并点击，重复3轮
-        for (round in 1..3) {
-            if (!isRunning) return DailyState.DONE
+        // Step 2: 智能清弹窗 — 每轮先OCR检查是否已在主界面
+        // v3.24: 涤墨作战图标和X长得像易误触，检测到"基建"文字即终止清弹窗
+        var popupRound = 0
+        while (isRunning && popupRound < 8) {
+            popupRound++
             checkPaused()
+            
+            // 先检查右下角是否有"基建"文字 → 有=已在主界面，直接进基建
+            val baseText = checkOcrText("基建", DeviceConfig.MAIN_BASE_SEARCH_AREA)
+            if (baseText != null) {
+                log("✅ 第${popupRound}轮检测到'基建'文字 → 已在主界面，直接进入基建")
+                clickAbs(baseText.first, baseText.second)
+                delay(2000)
+                return DailyState.BASE_COLLECT
+            }
+            
+            // 不在主界面 → 搜索X按钮并点击
             val xPositions = searchAllPopupX()
             if (xPositions.isEmpty()) {
-                log("✅ 第${round}轮无X按钮，弹窗已清完")
-                break
+                if (popupRound >= 3) {
+                    log("⚠️ 连续3轮无X且未找到基建，兜底点击基建位置")
+                    click(DeviceConfig.MAIN_BASE)
+                    delay(2000)
+                    return DailyState.BASE_COLLECT
+                }
+                delay(800)
+                continue
             }
+            
             for ((idx, xFound) in xPositions.withIndex()) {
-                log("✅ 第${round}轮找到X(${idx+1}) → 点击 (${xFound.first}, ${xFound.second})")
+                log("✅ 第${popupRound}轮找到X(${idx+1}) → 点击 (${xFound.first}, ${xFound.second})")
                 clickAbs(xFound.first, xFound.second)
                 delay(1000)
             }
         }
         
-        // Step 3: 验证3个X位置确保无残留X，有则继续清
-        var verifyRound = 0
-        while (isRunning) {
-            checkPaused()
-            verifyRound++
-            val remainingX = searchAllPopupX()
-            if (remainingX.isEmpty()) {
-                log("✅ 验证完成，无残留X按钮")
-                break
-            }
-            if (verifyRound > 10) {
-                log("⚠️ 验证X超过10轮，强制继续")
-                break
-            }
-            for ((idx, xFound) in remainingX.withIndex()) {
-                log("✅ 验证轮${verifyRound}发现残留X(${idx+1}) → 点击")
-                clickAbs(xFound.first, xFound.second)
-                delay(1000)
-            }
-        }
-        
-        // Step 4: OCR识别"基建" → 点击文字正中心
-        delay(500)
-        val baseFound = checkOcrText("基建", DeviceConfig.MAIN_BASE_SEARCH_AREA)
-        if (baseFound != null) {
-            log("✅ OCR找到'基建' → 点击文字正中心")
-            clickAbs(baseFound.first, baseFound.second)
-        } else {
-            log("⚠️ OCR未找到'基建'，兜底点击固定坐标")
-            click(DeviceConfig.MAIN_BASE)
-        }
+        // 兜底：循环结束还没返回，强制点基建
+        log("⚠️ 清弹窗${popupRound}轮结束，兜底点击基建")
+        click(DeviceConfig.MAIN_BASE)
         delay(2000)
-        
-        // 已进入基建，下一状态直接开始基建操作
         return DailyState.BASE_COLLECT
+
     }
     
     /**
@@ -687,39 +678,85 @@ class DailyRoutine(
      * ④ 基建收取 — 识蓝底铃铛→点→识"可收获"→5连点→点会客室
      * → 下一状态: CLUE_EXCHANGE
      */
+    /**
+     * ④ 基建收取 — 点铃铛展开底部栏→依次点5项(可收获/订单交付/干员信赖/队列轮换/干员疲劳)→点会客室
+     * v3.24: 从只点可收获扩展为底部快捷栏全部5项，OCR识别文字后点击文字正中心
+     * → 下一状态: CLUE_EXCHANGE
+     */
     private fun handleBaseCollect(): DailyState {
         log("=== 基建收取 ===")
         onAction?.invoke(TestAction.StateChanged(DailyState.BASE_COLLECT))
         
-        // v3.19: 清弹窗模块已通过OCR识别并点击"基建"进入基建，无需再点击
-        // 如果还没进基建（如从其他入口进入），尝试OCR再点一次
         delay(1000)
         
-        // 识别右上角蓝底铃铛并点击
-        val bellFound = checkColorInArea(DeviceConfig.BASE_BELL_AREA, DeviceConfig.COLOR_BASE_BELL)
-        if (bellFound != null) {
-            log("✅ 找到蓝底铃铛 → 点击")
-            clickAbs(bellFound.first, bellFound.second)
-            delay(1500)
-        } else {
-            log("⚠️ 未找到蓝底铃铛，尝试固定位置点击")
-            click(DeviceConfig.BASE_BELL_AREA.let {
-                DeviceConfig.PctCoord((it.leftPct + it.rightPct) / 2, (it.topPct + it.bottomPct) / 2)
-            })
-            delay(1500)
-        }
-        
-        // 点"可收获"按钮5次（间隔1s）
-        log("点击\"可收获\"5次")
-        for (i in 1..5) {
+        // Step 1: 点击右上角蓝底铃铛 → 展开底部快捷栏
+        // v3.24修复: 点击后验证底部栏是否出现，未出现则重试
+        var bellOk = false
+        for (attempt in 1..3) {
             if (!isRunning) return DailyState.DONE
-            click(DeviceConfig.BASE_HARVEST)
-            delay(1000)
+            checkPaused()
+            
+            val bellFound = checkColorInArea(DeviceConfig.BASE_BELL_AREA, DeviceConfig.COLOR_BASE_BELL)
+            if (bellFound != null) {
+                log("✅ 找到蓝底铃铛(第${attempt}次) → 点击 (${bellFound.first}, ${bellFound.second})")
+                clickAbs(bellFound.first, bellFound.second)
+            } else {
+                log("⚠️ 未识别到蓝底铃铛，固定位置点击")
+                val centerX = (DeviceConfig.BASE_BELL_AREA.leftPct + DeviceConfig.BASE_BELL_AREA.rightPct) / 2
+                val centerY = (DeviceConfig.BASE_BELL_AREA.topPct + DeviceConfig.BASE_BELL_AREA.bottomPct) / 2
+                click(DeviceConfig.PctCoord(centerX, centerY))
+            }
+            delay(1500)
+            
+            // 验证：底部是否出现"可收获"文字
+            val barVisible = checkOcrText("可收获", DeviceConfig.BASE_BOTTOM_BAR_AREA)
+            if (barVisible != null) {
+                log("✅ 底部快捷栏已展开")
+                bellOk = true
+                break
+            }
+            log("⚠️ 底部栏未出现，重试(${attempt}/3)")
+        }
+        if (!bellOk) {
+            log("⚠️ 铃铛点击3次仍未展开底部栏，继续尝试后续步骤")
         }
         
-        // 点会客室进入线索交流
-        log("点击会客室")
-        click(DeviceConfig.BASE_MEETING_ROOM)
+        // Step 2: 依次点击底部快捷栏5个功能项
+        // v3.24: OCR识别每项文字后点击文字正中心
+        val bottomItems = listOf("可收获", "订单交付", "干员信赖", "队列轮换", "干员疲劳")
+        for (item in bottomItems) {
+            if (!isRunning) return DailyState.DONE
+            checkPaused()
+            
+            var itemFound = checkOcrText(item, DeviceConfig.BASE_BOTTOM_BAR_AREA)
+            
+            // 干员疲劳也匹配"干员修整"
+            if (itemFound == null && item == "干员疲劳") {
+                itemFound = checkOcrText("干员修整", DeviceConfig.BASE_BOTTOM_BAR_AREA)
+                if (itemFound != null) {
+                    log("✅ 找到'干员修整'(干员疲劳别名) → 点击")
+                }
+            }
+            
+            if (itemFound != null) {
+                log("✅ 找到'${item}' → 点击 (${itemFound.first}, ${itemFound.second})")
+                clickAbs(itemFound.first, itemFound.second)
+                delay(1200)
+            } else {
+                log("⚠️ 未找到'${item}'，跳过")
+            }
+        }
+        
+        // Step 3: 识别并点击会客室 → 进入线索交流模块
+        delay(1000)
+        val meetingFound = checkOcrText("会客室", DeviceConfig.BASE_MEETING_ROOM_OCR_AREA)
+        if (meetingFound != null) {
+            log("✅ 找到'会客室' → 点击 (${meetingFound.first}, ${meetingFound.second})")
+            clickAbs(meetingFound.first, meetingFound.second)
+        } else {
+            log("⚠️ OCR未找到'会客室'，兜底点击固定位置")
+            click(DeviceConfig.BASE_MEETING_ROOM)
+        }
         delay(2000)
         
         return DailyState.CLUE_EXCHANGE

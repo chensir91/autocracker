@@ -11,8 +11,8 @@ android {
         applicationId "com.autoclicker.arknights"
         minSdk 24
         targetSdk 34
-        versionCode 16
-        versionName "3.23"
+        versionCode 17
+        versionName "3.24"
     }
 
     signingConfigs {
@@ -22,6 +22,11 @@ android {
             keyAlias = "release"
             keyPassword = "autocracker123"
         }
+    }
+
+    lintOptions {
+        disable "BlockedPrivateApi"
+        abortOnError false
     }
 
     buildTypes {

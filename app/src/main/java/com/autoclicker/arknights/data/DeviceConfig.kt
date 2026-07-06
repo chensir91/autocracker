@@ -140,6 +140,24 @@ object DeviceConfig {
     
     /** 基建内返回按钮 (6%, 5%) */
     val BACK_BASE = PctCoord(6f, 5f)
+
+    /** 底部快捷栏搜索区域（可收获、订单交付、干员信赖等） ✅图3验证 y:88-98% */
+    val BASE_BOTTOM_BAR_AREA = PctRect(3f, 88f, 97f, 98f)
+
+    /** 基建内"会客室"OCR搜索区域（控制中枢右侧） ✅图2验证 */
+    val BASE_MEETING_ROOM_OCR_AREA = PctRect(55f, 15f, 85f, 35f)
+
+    /** 底部快捷栏各项文字（按从左到右顺序） */
+    val BASE_BOTTOM_BAR_ITEMS = listOf(
+        "可收获",
+        "订单交付",
+        "干员信赖",
+        "队列轮换",
+        "干员疲劳"   // 也匹配"干员修整"
+    )
+
+    /** 基建底部"待办事项"勾选框位置（左下角） */
+    val BASE_TODO_CHECKBOX = PctCoord(8f, 95f)
     
     // ============ 会客室/线索交流 ============
     
