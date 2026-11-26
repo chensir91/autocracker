@@ -29,8 +29,8 @@ android {
     defaultConfig {
         applicationId "com.autoclicker.arknights"
         // 版本号由 CI 从 git tag 注入，例如 v3.27 → versionName 3.27 / versionCode 3027
-        versionCode (project.findProperty('versionCode') ?: '19').toString().toInteger()
-        versionName (project.findProperty('versionName') ?: '3.26').toString()
+        versionCode = (project.findProperty('versionCode') ?: '19').toString().toInteger()
+        versionName = (project.findProperty('versionName') ?: '3.26').toString()
     }
 
     if (hasSigning) {
