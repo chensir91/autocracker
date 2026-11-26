@@ -20,8 +20,15 @@ jobs:
           java-version: '17'
           distribution: temurin
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: 准备 Android SDK
+        run: |
+          echo "SDK 路径: ${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          # 运行器已预装 SDK，这里只补齐可能缺失的 platform 34
+          if [ ! -d "$SDK/platforms/android-34" ]; then
+            "$SDK/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-34" "build-tools;34.0.0" > /dev/null
+          fi
+          ls "$SDK/platforms"
 
       - name: Cache Gradle
         uses: actions/cache@v4
