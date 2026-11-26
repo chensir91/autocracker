@@ -2,6 +2,13 @@
 
 一个基于 Android 无障碍服务的自动连点器应用，专为游戏（如明日方舟）设计，用于辅助完成重复性点击操作。
 
+> [!IMPORTANT]
+> **v3.27 起更换了签名密钥**
+>
+> 旧版签名密钥曾意外提交到本仓库，存在被冒用的风险，因此 v3.27 起改用全新的签名证书。
+> 由于 Android 不允许签名不同的 APK 覆盖安装，**升级到 v3.27 需要先卸载旧版本再安装**（卸载会清空已保存的连点方案，请提前记下或重新录制）。
+
+
 ## 功能特性
 
 - **单点连击模式**：在一个固定位置反复点击
@@ -98,6 +105,35 @@
    adb install app/build/outputs/apk/debug/app-debug.apk
    ```
 
+### 签名配置（本地构建 release）
+
+仓库里**不再保存任何签名文件**。要在本地打 release 包，请在项目根目录新建 `keystore.properties`（已被 `.gitignore` 忽略）：
+
+```properties
+storeFile=/绝对路径/release.p12
+storePassword=你的密码
+keyAlias=release
+keyPassword=你的密码
+```
+
+没有这个文件时，`assembleDebug` 仍然可用（自动使用 debug 签名），`assembleRelease` 会产出未签名 APK。
+
+### 发版流程
+
+正式版本由 GitHub Actions 构建并发布，本地不需要打包：
+
+```bash
+git tag v3.27
+git push origin v3.27
+```
+
+CI 会自动：
+1. 从 tag 解析版本号（`v3.27` → `versionName=3.27`、`versionCode=32700`）
+2. 用仓库 Secret `SIGNING_CONFIG` 中的密钥签名
+3. 构建 APK 并创建 GitHub Release，自动附带 APK 和变更说明
+
+日常提交到 `main` 只会触发 debug 构建冒烟检查，不会发版。
+
 ## 项目结构
 
 ```
@@ -144,4 +180,4 @@
 
 ## License
 
-MIT License
+MIT License（见 [LICENSE](LICENSE)）
