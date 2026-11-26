@@ -41,7 +41,7 @@ android {
                 keyAlias kAlias
                 keyPassword kPass
                 // openssl 生成的是 PKCS12；如果是传统 JKS 则自动回落
-                storeType (ksPath.toLowerCase().endsWith('.p12') || ksPath.toLowerCase().endsWith('.pfx')) ? 'PKCS12' : 'JKS'
+                storeType = ((ksPath.toLowerCase().endsWith('.p12') || ksPath.toLowerCase().endsWith('.pfx')) ? 'PKCS12' : 'JKS')
             }
         }
     }
@@ -53,12 +53,16 @@ android {
 
     buildTypes {
         debug {
-            if (hasSigning) signingConfig signingConfigs.release
+            if (hasSigning) {
+                signingConfig = signingConfigs.release
+            }
         }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            if (hasSigning) signingConfig signingConfigs.release
+            if (hasSigning) {
+                signingConfig = signingConfigs.release
+            }
         }
     }
 
