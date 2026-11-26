@@ -73,6 +73,8 @@ jobs:
           cfg = json.loads(base64.b64decode(os.environ['SIGNING_CONFIG']).decode('utf-8'))
           ks = pathlib.Path('release.p12').resolve()
           ks.write_bytes(base64.b64decode(cfg['keystore']))
+          for v in (cfg['storePassword'], cfg['keyPassword']):
+              print(f"::add-mask::{v}")   # 防止密码出现在公开日志里
           with pathlib.Path(os.environ['GITHUB_ENV']).open('a') as f:
               f.write(f"KEYSTORE_PATH={ks}\n")
               f.write(f"KEYSTORE_PASSWORD={cfg['storePassword']}\n")
@@ -98,14 +100,15 @@ jobs:
       - name: 创建 GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: v${{ steps.version.outputs.version }}
+          TARGET: ${{ github.event_name == 'workflow_dispatch' && 'main' || '' }}
         run: |
-          TAG="v${{ steps.version.outputs.version }}"
+          EXTRA=()
+          # tag 推送时不要再传 --target，否则 GitHub 会报 target_commitish 无效
+          if [ -n "$TARGET" ]; then EXTRA+=(--target "$TARGET"); fi
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release $TAG 已存在，改为覆盖上传"
+            echo "Release $TAG 已存在，覆盖上传 APK"
             gh release upload "$TAG" "$APK_PATH" --clobber
           else
-            gh release create "$TAG" "$APK_PATH" \
-              --title "v${{ steps.version.outputs.version }}" \
-              --generate-notes \
-              --target "${{ github.event_name == 'workflow_dispatch' && 'main' || github.ref_name }}"
+            gh release create "$TAG" "$APK_PATH" --title "$TAG" --generate-notes "${EXTRA[@]}"
           fi
