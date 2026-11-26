@@ -3,24 +3,46 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
+// 签名信息不再写死在仓库里。
+// 优先级：环境变量 > keystore.properties（本地，已在 .gitignore 中）
+// CI 上由 GitHub Actions 从仓库 Secret 里解出临时文件后通过环境变量传入。
+def signingProps = new Properties()
+def propsFile = rootProject.file('keystore.properties')
+if (propsFile.exists()) {
+    propsFile.withInputStream { signingProps.load(it) }
+}
+
+def ksPath = System.getenv('KEYSTORE_PATH') ?: signingProps.getProperty('storeFile')
+def ksPass = System.getenv('KEYSTORE_PASSWORD') ?: signingProps.getProperty('storePassword')
+def kAlias = System.getenv('KEY_ALIAS') ?: signingProps.getProperty('keyAlias')
+def kPass = System.getenv('KEY_PASSWORD') ?: signingProps.getProperty('keyPassword')
+
+def hasSigning = ksPath && new File(ksPath).exists() && ksPass && kAlias && kPass
+if (!hasSigning) {
+    logger.lifecycle("[signing] 未配置签名密钥，产物将使用 debug 签名或不签名")
+}
+
 android {
     namespace 'com.autoclicker.arknights'
     compileSdk 34
 
     defaultConfig {
         applicationId "com.autoclicker.arknights"
-        minSdk 24
-        targetSdk 34
-        versionCode 19
-        versionName "3.26"
+        // 版本号由 CI 从 git tag 注入，例如 v3.27 → versionName 3.27 / versionCode 3027
+        versionCode (project.findProperty('versionCode') ?: '19').toString().toInteger()
+        versionName (project.findProperty('versionName') ?: '3.26').toString()
     }
 
-    signingConfigs {
-        release {
-            storeFile = rootProject.file(".github/keystore/release.keystore")
-            storePassword = "autocracker123"
-            keyAlias = "release"
-            keyPassword = "autocracker123"
+    if (hasSigning) {
+        signingConfigs {
+            release {
+                storeFile file(ksPath)
+                storePassword ksPass
+                keyAlias kAlias
+                keyPassword kPass
+                // openssl 生成的是 PKCS12；如果是传统 JKS 则自动回落
+                storeType (ksPath.toLowerCase().endsWith('.p12') || ksPath.toLowerCase().endsWith('.pfx')) ? 'PKCS12' : 'JKS'
+            }
         }
     }
 
@@ -31,12 +53,12 @@ android {
 
     buildTypes {
         debug {
-            signingConfig signingConfigs.release
+            if (hasSigning) signingConfig signingConfigs.release
         }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
+            if (hasSigning) signingConfig signingConfigs.release
         }
     }
 
@@ -51,6 +73,12 @@ android {
 
     buildFeatures {
         viewBinding true
+    }
+
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            outputFileName = "autocracker-${variant.versionName}-${variant.buildType.name}.apk"
+        }
     }
 }
 
